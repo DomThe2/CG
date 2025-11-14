@@ -22,6 +22,7 @@
 
 // cd '01 Introduction and Orientation'/extras/RedNoise
 // make 
+// make speedy
 
 /*
 std::vector<glm::vec3> interpolateThreeElementValues(glm::vec3 from, glm::vec3 to, int numberOfValues) {
@@ -212,8 +213,8 @@ int main(int argc, char *argv[]) {
 	float zbuf[HEIGHT][WIDTH];
 	//std::tuple<std::map<std::string, Colour>, std::map<std::string, TextureMap>> palette = loadPalette("textured-cornell-box.mtl");
 	//std::vector<Face> output = loadTriangle("textured-cornell-box.obj", palette, 0.35);
-	std::tuple<std::map<std::string, Colour>, std::map<std::string, TextureMap>> palette = loadPalette("cornell-box.mtl");
-	std::vector<Face> output = loadTriangle("cornell-box.obj", palette, 0.35);
+	std::tuple<std::map<std::string, Colour>, std::map<std::string, TextureMap>> palette = loadPalette("textured-cornell-box.mtl");
+	std::vector<Face> output = loadTriangle("textured-cornell-box.obj", palette, 0.35);
 
 	cameraClass camera;
 	camera.cameraPos = glm::vec3(0.0, 0, 4.0);
@@ -238,6 +239,7 @@ int main(int argc, char *argv[]) {
 		}
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
+		//camera.light = xMatrix(0.025, -1) * camera.light;
 		std::cout<<"Frame Time: " + std::to_string((SDL_GetTicks() - start_time)/1000) + "s" <<std::endl;
 	}
 }

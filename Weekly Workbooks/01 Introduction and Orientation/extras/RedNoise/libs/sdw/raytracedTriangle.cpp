@@ -1,5 +1,6 @@
 #include <vector>
 #include <glm/glm.hpp>
+#include <math.h>
 
 #include "DrawingWindow.h"
 #include "CanvasPoint.h"
@@ -12,6 +13,11 @@
 #include "face.h"
 
 #include "raytracedTriangle.h"
+
+glm::vec3 getBarycentricOfIntersection(RayTriangleIntersection intersection) {
+	return convertToBarycentricCoordinates(intersection.intersectedTriangle.vertices[0], intersection.intersectedTriangle.vertices[1], 
+        	intersection.intersectedTriangle.vertices[2], intersection.intersectionPoint);
+}
 
 RayTriangleIntersection getClosestIntersection(std::vector<Face> model, glm::vec3 cameraPosition, glm::vec3 rayDirection) {
 	RayTriangleIntersection intersection;
@@ -36,11 +42,32 @@ RayTriangleIntersection getClosestIntersection(std::vector<Face> model, glm::vec
 	return intersection;
 }
 
-bool inShadow(std::vector<Face> model, RayTriangleIntersection ray, glm::vec3 light) {
+float inShadow(std::vector<Face> model, RayTriangleIntersection ray, glm::vec3 light, int lightNumber) {
 	glm::vec3 relativePos = light - ray.intersectionPoint;
-	float distance = glm::length(relativePos);
-	RayTriangleIntersection closest = getClosestIntersection(model, ray.intersectionPoint + glm::normalize(relativePos)*0.001f, glm::normalize(relativePos));
-	return (closest.distanceFromCamera < distance) && closest.distanceFromCamera != std::numeric_limits<float>::infinity();
+	std::vector<int> shells = {1, 8, 18, 32, 50, 72};
+	float radius = 0.1f;
+	int n = 0;
+	float w = 0;
+	for (int i=0; i<shells.size(); i++) {
+		float a = 2 * M_PI * i / shells[i];
+		for (int j=0; j<shells[i]; j++) {
+			
+			float x = relativePos.x + (i * radius) * std::cos(a);
+			float y = relativePos.y + (i * radius) * std::sin(a);
+			glm::vec3 l = glm::vec3(x, y, relativePos.z);
+			
+			float distance = glm::length(l);
+			RayTriangleIntersection closest = getClosestIntersection(model, ray.intersectionPoint + glm::normalize(l)*0.001f, glm::normalize(l));
+			if (!((closest.distanceFromCamera < distance) && (closest.distanceFromCamera != std::numeric_limits<float>::infinity()))) {
+				w += 1.0f / n;
+			}
+			n++;
+			if (n >= lightNumber) {
+				return w;
+			}
+		} 
+	}
+
 }
 
 float specularValue(RayTriangleIntersection intersection, glm::vec3 normal, float coarseness, cameraClass &camera) {
@@ -54,14 +81,26 @@ float specularValue(RayTriangleIntersection intersection, glm::vec3 normal, floa
 }
 
 glm::vec3 getphongNormal(RayTriangleIntersection intersection, std::vector<Face> model, cameraClass &camera) {
-    glm::vec3 barycentric = convertToBarycentricCoordinates(intersection.intersectedTriangle.vertices[0], intersection.intersectedTriangle.vertices[1], 
-                                                            intersection.intersectedTriangle.vertices[2], intersection.intersectionPoint);
-
+    glm::vec3 barycentric = getBarycentricOfIntersection(intersection);
     glm::vec3 normal = barycentric.z * model[intersection.triangleIndex].v0Normal 
         + barycentric.x * model[intersection.triangleIndex].v1Normal 
         + barycentric.y * model[intersection.triangleIndex].v2Normal;
 
     return glm::normalize(normal);
+}
+
+Colour getColour(RayTriangleIntersection intersection, Face face) {
+	if (face.textured) {
+		glm::vec3 barycentric = getBarycentricOfIntersection(intersection);
+		float u = barycentric.z * face.triangle.texturePoints[0].x + barycentric.x * face.triangle.texturePoints[1].x + barycentric.y * face.triangle.texturePoints[2].x;
+		float v = barycentric.z * face.triangle.texturePoints[0].y + barycentric.x * face.triangle.texturePoints[1].y + barycentric.y * face.triangle.texturePoints[2].y;
+		uint32_t raw = face.texture.pixels[(int)v * face.texture.width + (int)u];
+		int r = (raw >> 16) & 0xFF;
+		int g = (raw >> 8) & 0xFF;
+		int b = raw & 0xFF;
+		return Colour(r, g, b);
+	} 
+	return face.triangle.colour;
 }
 
 void drawRaytraced(DrawingWindow &window, std::vector<Face> model, float (&zbuf)[HEIGHT][WIDTH], cameraClass &camera) {
@@ -104,14 +143,16 @@ void drawRaytraced(DrawingWindow &window, std::vector<Face> model, float (&zbuf)
                 float proximity = 1.0f/9.0f * 1.0f/(distance*distance);
                 float angle = std::fmax(glm::dot(glm::normalize(camera.light - intersection.intersectionPoint), glm::normalize(normal)), 0);
                 float specular = specularValue(intersection, normal, 64, camera);
-                brightness = ambient + (proximity * 1.0f + angle * 1.0f) * !inShadow(model, intersection, camera.light);
-                //brightness = specular * 5.0f;
+                //brightness = ambient + (proximity * 1.0f + angle * 1.0f);
+				brightness = ambient + (proximity * 1.0f + angle * 1.0f) * inShadow(model, intersection, camera.light, 1);
                 brightness = glm::clamp(brightness, 0.0f, 1.0f);
 
+				Colour colour = getColour(intersection, model[intersection.triangleIndex]);
 
-				int red = glm::min(int(intersection.intersectedTriangle.colour.red*brightness + specular * 255.0f * 0.5f), 255);
-				int green = glm::min(int(intersection.intersectedTriangle.colour.green*brightness + specular * 255.0f * 0.5f), 255);
-				int blue = glm::min(int(intersection.intersectedTriangle.colour.blue*brightness + specular * 255.0f * 0.5f), 255);
+
+				int red = glm::min(int(colour.red*brightness + specular * 255.0f * 0.5f), 255);
+				int green = glm::min(int(colour.green*brightness + specular * 255.0f * 0.5f), 255);
+				int blue = glm::min(int(colour.blue*brightness + specular * 255.0f * 0.5f), 255);
 				uint32_t pixelColour = (255 << 24) + (red << 16) + (green << 8) + blue;
 				window.setPixelColour(j, i, pixelColour);
 			}
