@@ -7,6 +7,7 @@
 #include "ModelTriangle.h"
 #include "Colour.h"
 #include "Utils.h"
+#include "cameraUtils.h"
 #include "camera.h"
 
 #include "filledTriangle.h"

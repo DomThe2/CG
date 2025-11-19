@@ -1,0 +1,3 @@
+newmtl Planet
+Kd 1.000 1.000 1.000
+map_Kd continental_01_diffuse.ppm

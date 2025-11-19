@@ -2,9 +2,10 @@
 #include <sstream>
 #include <vector>
 #include <glm/glm.hpp>
+#include "DrawingWindow.h"
+#include "Colour.h"
 
 #include "CanvasPoint.h"
-#include "camera.h"
 #include "Utils.h"
 
 glm::mat3 xMatrix(float angle, float direction) {
@@ -20,13 +21,6 @@ glm::mat3 yMatrix(float angle, float direction) {
     0, direction*sin(angle), cos(angle));
 
 }
-void lookAt(glm::vec3 location, cameraClass &camera) {
-	glm::vec3 forward = glm::normalize(camera.cameraPos - location);
-	glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0,1,0), forward));
-	glm::vec3 up = glm::cross(forward, right);
-	camera.cameraOri = glm::mat3(right, up, forward);
-	
-}
 
 std::vector<float> interpolateSingleFloats(float from, float to, float numberOfValues) {
 	std::vector<float> output;
@@ -39,15 +33,6 @@ std::vector<float> interpolateSingleFloats(float from, float to, float numberOfV
 	}
 	return output;
 }
-
-CanvasPoint projectVertexOntoCanvasPoint(cameraClass &camera, glm::vec3 vertexPosition) {
-	glm::vec3 relativePosition = glm::transpose(camera.cameraOri) * (vertexPosition - camera.cameraPos);
-    float x = std::round((camera.focalLength * (relativePosition.x / relativePosition.z)) * (WIDTH/2.0f) + (WIDTH / 2.0f));	
-    float y = std::round((camera.focalLength * (relativePosition.y / relativePosition.z)) * (WIDTH/2.0f) + (HEIGHT / 2.0f));
-	float depth = -1.0/relativePosition.z;
-	x = WIDTH - x;
-	return CanvasPoint(x, y, depth);
-} 
 
 std::vector<std::string> split(const std::string &line, char delimiter) {
 	auto haystack = line;
@@ -96,3 +81,4 @@ glm::vec3 convertToBarycentricCoordinates(glm::vec3 v0, glm::vec3 v1, glm::vec3 
     float w = 1.0f - u - v;
     return glm::vec3(u,v,w);
 }
+

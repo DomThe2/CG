@@ -1,6 +1,8 @@
 #include <vector>
 #include <glm/glm.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 #include <math.h>
+#include <queue>
 
 #include "DrawingWindow.h"
 #include "CanvasPoint.h"
@@ -8,20 +10,28 @@
 #include "ModelTriangle.h"
 #include "Colour.h"
 #include "Utils.h"
+#include "cameraUtils.h"
 #include "camera.h"
 #include "RayTriangleIntersection.h"
 #include "face.h"
+#include "kdTree.h"
 
 #include "raytracedTriangle.h"
+
+//TODO:
+// - light raytracing off mirrors and glass
+// - improve shadowing
+// - fix broken refraction
 
 glm::vec3 getBarycentricOfIntersection(RayTriangleIntersection intersection) {
 	return convertToBarycentricCoordinates(intersection.intersectedTriangle.vertices[0], intersection.intersectedTriangle.vertices[1], 
         	intersection.intersectedTriangle.vertices[2], intersection.intersectionPoint);
 }
 
-RayTriangleIntersection getClosestIntersection(std::vector<Face> model, glm::vec3 cameraPosition, glm::vec3 rayDirection) {
+RayTriangleIntersection getClosestIntersection(std::vector<Face>& model, glm::vec3 cameraPosition, glm::vec3 rayDirection, int ignoreIndex) {
 	RayTriangleIntersection intersection;
 	intersection.distanceFromCamera = std::numeric_limits<float>::infinity();
+	intersection.triangleIndex = -1;
 	for (int i=0; i<model.size(); i++) {
 		glm::vec3 e0 = model[i].triangle.vertices[1] - model[i].triangle.vertices[0];
 		glm::vec3 e1 = model[i].triangle.vertices[2] - model[i].triangle.vertices[0];
@@ -32,7 +42,7 @@ RayTriangleIntersection getClosestIntersection(std::vector<Face> model, glm::vec
 		float t = possibleSolution[0];
 		float u = possibleSolution[1];
 		float v = possibleSolution[2];
-		if ((t>0.001f) && (u >= 0.0) && (u <= 1.0) && (v >= 0.0) && (v <= 1.0) && ((u + v) <= 1.0) && (t<intersection.distanceFromCamera)) {
+		if ((t>0.0f) && (u >= 0.0) && (u <= 1.0) && (v >= 0.0) && (v <= 1.0) && ((u + v) <= 1.0) && (t<intersection.distanceFromCamera) && (i != ignoreIndex)) {
 			intersection.intersectionPoint = model[i].triangle.vertices[0] + u * e0 + v * e1;
 			intersection.distanceFromCamera = t;
 			intersection.intersectedTriangle = model[i].triangle;
@@ -42,32 +52,28 @@ RayTriangleIntersection getClosestIntersection(std::vector<Face> model, glm::vec
 	return intersection;
 }
 
-float inShadow(std::vector<Face> model, RayTriangleIntersection ray, glm::vec3 light, int lightNumber) {
-	glm::vec3 relativePos = light - ray.intersectionPoint;
-	std::vector<int> shells = {1, 8, 18, 32, 50, 72};
-	float radius = 0.1f;
-	int n = 0;
+float inShadow(std::vector<Face> &model, RayTriangleIntersection ray, glm::vec3 light, int shellNumber) {
+	float radius = 0.05f/shellNumber;
 	float w = 0;
-	for (int i=0; i<shells.size(); i++) {
-		float a = 2 * M_PI * i / shells[i];
-		for (int j=0; j<shells[i]; j++) {
-			
-			float x = relativePos.x + (i * radius) * std::cos(a);
-			float y = relativePos.y + (i * radius) * std::sin(a);
-			glm::vec3 l = glm::vec3(x, y, relativePos.z);
-			
-			float distance = glm::length(l);
-			RayTriangleIntersection closest = getClosestIntersection(model, ray.intersectionPoint + glm::normalize(l)*0.001f, glm::normalize(l));
-			if (!((closest.distanceFromCamera < distance) && (closest.distanceFromCamera != std::numeric_limits<float>::infinity()))) {
-				w += 1.0f / n;
-			}
+	float n = 0;
+	glm::vec3 direction = glm::normalize(light - ray.intersectionPoint);
+	glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0,1,0), direction));
+	glm::vec3 up = glm::cross(direction, right);
+	for (int i=1; i<=shellNumber; i++) {
+		for (int j=0; j<(2*i*i); j++) {
+			float a = (2 * M_PI * j) / (2*i*i);
+			float x = (i * radius) * std::cos(a);
+			float y = (i * radius) * std::sin(a); 
+			glm::vec3 offset = x * right + y * up;
+			glm::vec3 relativePos = (light + offset) - ray.intersectionPoint;	
+			float distance = glm::length(relativePos);
+			RayTriangleIntersection closest = getClosestIntersection(model, ray.intersectionPoint + glm::normalize(relativePos)*0.01f, glm::normalize(relativePos), ray.triangleIndex);
+			bool occluded = (closest.distanceFromCamera < distance) && (closest.distanceFromCamera != std::numeric_limits<float>::infinity());
+			if (!occluded) w++;
 			n++;
-			if (n >= lightNumber) {
-				return w;
-			}
 		} 
 	}
-
+	return w/n;
 }
 
 float specularValue(RayTriangleIntersection intersection, glm::vec3 normal, float coarseness, cameraClass &camera) {
@@ -80,7 +86,7 @@ float specularValue(RayTriangleIntersection intersection, glm::vec3 normal, floa
     return std::fmax(pow(dot, coarseness), 0.0f);
 }
 
-glm::vec3 getphongNormal(RayTriangleIntersection intersection, std::vector<Face> model, cameraClass &camera) {
+glm::vec3 getphongNormal(RayTriangleIntersection intersection, std::vector<Face> model) {
     glm::vec3 barycentric = getBarycentricOfIntersection(intersection);
     glm::vec3 normal = barycentric.z * model[intersection.triangleIndex].v0Normal 
         + barycentric.x * model[intersection.triangleIndex].v1Normal 
@@ -89,27 +95,187 @@ glm::vec3 getphongNormal(RayTriangleIntersection intersection, std::vector<Face>
     return glm::normalize(normal);
 }
 
-Colour getColour(RayTriangleIntersection intersection, Face face) {
-	if (face.textured) {
-		glm::vec3 barycentric = getBarycentricOfIntersection(intersection);
-		float u = barycentric.z * face.triangle.texturePoints[0].x + barycentric.x * face.triangle.texturePoints[1].x + barycentric.y * face.triangle.texturePoints[2].x;
-		float v = barycentric.z * face.triangle.texturePoints[0].y + barycentric.x * face.triangle.texturePoints[1].y + barycentric.y * face.triangle.texturePoints[2].y;
-		uint32_t raw = face.texture.pixels[(int)v * face.texture.width + (int)u];
-		int r = (raw >> 16) & 0xFF;
-		int g = (raw >> 8) & 0xFF;
-		int b = raw & 0xFF;
-		return Colour(r, g, b);
-	} 
-	return face.triangle.colour;
+glm::vec3 getNormal(RayTriangleIntersection intersection, std::vector<Face> model) {
+	if (model[intersection.triangleIndex].phong) return getphongNormal(intersection, model);
+	else return intersection.intersectedTriangle.normal;
 }
 
-void drawRaytraced(DrawingWindow &window, std::vector<Face> model, float (&zbuf)[HEIGHT][WIDTH], cameraClass &camera) {
+Colour getEnvironment(glm::vec3 ray, cameraClass &camera) {
+	// Not my code 
+	float u = atan2(ray.z, ray.x); 	
+    if (u < 0) u += 2.0f * M_PI;
+    u /= 2.0f * M_PI;
+	float v = acos(glm::clamp(ray.y, -1.0f, 1.0f)) / M_PI;
+    int x = glm::clamp(int(u * camera.environment.width), 0, int(camera.environment.width) - 1);
+    int y = glm::clamp(int(v * camera.environment.height), 0, int(camera.environment.height) - 1);
+	// end of not my code 
+    uint32_t raw = camera.environment.pixels[y * camera.environment.width + x];
+    int r = (raw >> 16) & 0xFF;
+    int g = (raw >> 8) & 0xFF;
+    int b = raw & 0xFF;
+    return Colour(r, g, b);
+}
+
+Colour getColour(std::vector<Face> &model, node* kdTree, RayTriangleIntersection intersection, glm::vec3 ray, glm::vec3 normal, Face face, cameraClass &camera, int recursionDepth) {
+	if (intersection.distanceFromCamera == std::numeric_limits<float>::infinity()) {
+		return getEnvironment(ray, camera);
+    } else if (face.mirror && (recursionDepth > 0)) {
+		glm::vec3 R = glm::reflect(ray, normal);;
+		RayTriangleIntersection reflected = getClosestIntersection(model, intersection.intersectionPoint + normal*0.05f, R, intersection.triangleIndex);
+		if (reflected.distanceFromCamera != std::numeric_limits<float>::infinity()) {
+			glm::vec3 reflectedNormal = getNormal(reflected, model);
+        	return getColour(model, kdTree, reflected, R, reflectedNormal, model[reflected.triangleIndex], camera, recursionDepth - 1);
+		} else {
+			return getEnvironment(R, camera);
+		}
+	} else if ((face.opacity<1.0f) && (recursionDepth > 0)) {
+		glm::vec3 refracted;
+		//glm::vec3 N = glm::normalize(face.triangle.normal);
+		glm::vec3 N = normal;
+		float ratio;
+		if (glm::dot(ray, N) < 0.0f) { //Ray entering
+			ratio = (1.0f/1.5f);
+			refracted = glm::refract(ray, N, ratio); 
+		} else { //Ray exiting 
+			N = -N;
+			ratio = (1.5f/1.0f);
+			refracted = glm::refract(ray, N, ratio); 
+		}
+		if (glm::length(refracted) < 1e-6f) {  // TIR
+			glm::vec3 r = glm::normalize(glm::reflect(ray, N));
+			RayTriangleIntersection newIntersection = getClosestIntersection(model, intersection.intersectionPoint + r*0.05f, r, intersection.triangleIndex);
+			if (newIntersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
+				glm::vec3 newIntersectionNormal = getNormal(newIntersection, model);
+				return getColour(model, kdTree, newIntersection, r, newIntersectionNormal, model[newIntersection.triangleIndex], camera, recursionDepth-1);
+			} else {
+				return getEnvironment(r, camera);
+			}
+		} else { // Refraction
+			refracted = glm::normalize(refracted);
+			RayTriangleIntersection newIntersection = getClosestIntersection(model, intersection.intersectionPoint + refracted*0.001f, refracted, intersection.triangleIndex);
+			if (newIntersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {	
+         		glm::vec3 newIntersectionNormal = getNormal(newIntersection, model);
+            	return getColour(model, kdTree, newIntersection, refracted, newIntersectionNormal, model[newIntersection.triangleIndex], camera, recursionDepth-1);
+        	} else {
+            	return getEnvironment(refracted, camera);
+        	}
+		}
+	} else {
+		Colour colour;
+		if (face.textured) {
+			glm::vec3 barycentric = getBarycentricOfIntersection(intersection);
+			float u = barycentric.z * face.triangle.texturePoints[0].x + barycentric.x * face.triangle.texturePoints[1].x + barycentric.y * face.triangle.texturePoints[2].x;
+			float v = barycentric.z * face.triangle.texturePoints[0].y + barycentric.x * face.triangle.texturePoints[1].y + barycentric.y * face.triangle.texturePoints[2].y;
+			uint32_t raw = face.texture.pixels[(int)v * face.texture.width + (int)u];
+			int r = (raw >> 16) & 0xFF;
+			int g = (raw >> 8) & 0xFF;
+			int b = raw & 0xFF;
+			colour = Colour(r,g,b);
+		} else {
+			colour = face.diffuse;
+		}
+
+		float ambient = 0.4f;
+		float distance = glm::length(camera.light - intersection.intersectionPoint);
+        float proximity = 1.0f/9.0f * 1.0f/(distance*distance);
+        float angle = std::fmax(glm::dot(glm::normalize(camera.light - intersection.intersectionPoint), glm::normalize(normal)), 0);
+        float specular = specularValue(intersection, normal, face.specularExponent, camera);
+		
+		std::priority_queue<float> nearby;
+		searchkdTree(kdTree, nearby, intersection.intersectionPoint, 100);
+		
+		float energy = 0.0;
+		float radius = nearby.top();
+		float area = M_PI * radius * radius;
+		float shadow = (0.2f + inShadow(model, intersection, camera.light, 1));
+		for (int i=0; i<nearby.size(); i++) {
+			nearby.pop();
+			if (shadow<0.5f) {
+				energy += nearby.top() * 0.001f;
+			} else if (100/area > 50.0f) {
+				energy += (100/area - 50.0f) * 0.01f;
+			}
+		}
+
+		Colour ambientTerm  = face.ambient * ambient;
+		Colour diffuseTerm  = colour * angle * proximity;
+		Colour specularTerm = face.specular * specular;
+		Colour photonTerm   = face.diffuse * energy;
+
+		return (ambientTerm + diffuseTerm + specularTerm); //+ photonTerm
+	}
+}
+
+void traceRay(std::vector<Face> &model, std::vector<photon> &output, glm::vec3 origin, glm::vec3 direction, Colour power, int recursionDepth) {
+	RayTriangleIntersection intersection = getClosestIntersection(model, origin, direction, -1);
+	Colour colour;
+	photon p;
+	if (recursionDepth <= 0) return;
+	else if ((intersection.triangleIndex >= 0) && (intersection.distanceFromCamera != std::numeric_limits<float>::infinity())) {
+		glm::vec3 location = glm::vec3(intersection.intersectionPoint);
+		p.location = location;
+		p.power = power;
+		p.incidence = direction;
+		glm::vec3 normal = getNormal(intersection, model);
+		if (model[intersection.triangleIndex].opacity < 1.0f) { //Material transparent
+			glm::vec3 refracted;
+			float ratio;
+			if (glm::dot(direction, normal) < 0.0f) { //Ray entering
+				ratio = (1.0f/1.5f);
+				refracted = glm::refract(direction, normal, ratio); 
+			} else { //Ray exiting 
+				normal = -normal;
+				ratio = (1.5f/1.0f);
+				refracted = glm::refract(direction, normal, ratio); 
+			}
+			if (glm::length(refracted) < 1e-6f) { //TIR
+				glm::vec3 R = glm::normalize(glm::reflect(direction, normal));
+				traceRay(model, output, intersection.intersectionPoint + R*0.05f, R, power, recursionDepth-1);
+			} else { //Refraction
+				refracted = glm::normalize(refracted);
+				Colour newPower = power * model[intersection.triangleIndex].transmission;
+				traceRay(model, output, intersection.intersectionPoint + refracted*0.001f, refracted, newPower, recursionDepth-1);
+			}
+		} else {
+			glm::vec3 R = glm::normalize(glm::reflect(direction, normal));
+			if (model[intersection.triangleIndex].mirror) { //Mirror, reflect all
+				traceRay(model, output, intersection.intersectionPoint + normal*0.05f, R, power, recursionDepth-1);
+			} else { //Other surface, russian roulette for reflection
+				output.push_back(p);
+				float roulette = ((float)rand()/(float)RAND_MAX < 0.5f); // reflects with 50% probability
+				if (roulette) {
+					Colour newPower = power * model[intersection.triangleIndex].diffuse;
+					traceRay(model, output, intersection.intersectionPoint + normal*0.05f, R, newPower, recursionDepth-1);
+				}
+			}
+		}
+	}
+}
+
+std::vector<photon> photonMap(DrawingWindow &window, std::vector<Face> &model, int count, cameraClass &camera) {
+	std::cout<<"building photon map"<<std::endl;
+	std::vector<photon> map;
+	photon point;
+	for (int i=0; i<count; i++) {
+		float z = 2.0f * (float(rand())/(float)RAND_MAX) - 1.0f;
+		float t = 2.0f * M_PI * (float(rand())/(float)RAND_MAX);
+		float r = sqrt(1 - z*z);
+		glm::vec3 direction = glm::vec3(r * cos(t), r * sin(t), z);
+		traceRay(model, map, camera.light, direction, Colour(1,1,1), 6);
+		if (i%1000 == 0) std::cout<<(float)i/(float)count<<std::endl;
+	}
+	return map;
+}
+
+void drawRaytraced(DrawingWindow &window, std::vector<Face> &model, node* kdTree, cameraClass &camera) {
+	/*
 	for (int i=0; i<HEIGHT; i++) {
 		for (int j=0; j<WIDTH; j++) {
 			window.setPixelColour(j, i, 255<<24);
 		}	
 	}
-	std::fill(&zbuf[0][0], &zbuf[0][0] + HEIGHT * WIDTH, 0.0f);
+		*/
+	
 	if (camera.orbit) {
 		camera.cameraPos = xMatrix(0.02, -1) * camera.cameraPos;
 		lookAt(glm::vec3(0,0,0), camera);
@@ -123,39 +289,24 @@ void drawRaytraced(DrawingWindow &window, std::vector<Face> model, float (&zbuf)
 	glm::vec3 viewportXStart = glm::vec3(-(viewportWidth/2.0f), 0, 0);
 	glm::vec3 viewportYStart = glm::vec3(0, (viewportHeight/2.0f), 0);
 
+	SDL_Event event;
 	for (float i=0; i<HEIGHT; i++) {
+		if (window.pollForInputEvents(event)) handleEvent(event, window, camera);
+		std::cout<<i/HEIGHT<<std::endl;
 		for (float j=0; j<WIDTH; j++) {	
 			glm::vec3 pixelCameraSpace = -glm::vec3(0, 0, camera.focalLength) + viewportXStart + j * viewportXIncrement + viewportYStart + i * viewportYIncrement;
 			glm::vec3 rayDirection = glm::normalize(camera.cameraOri * pixelCameraSpace);
-			RayTriangleIntersection intersection = getClosestIntersection(model, camera.cameraPos, rayDirection);
-
-			
+			RayTriangleIntersection intersection = getClosestIntersection(model, camera.cameraPos, rayDirection, -1);
+			Colour colour;
 			if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
-                float ambient = 0.2f;
-                float brightness;
-                glm::vec3 normal;
-                if (camera.phong) {
-                    normal = getphongNormal(intersection, model, camera);
-                } else {
-                    normal = intersection.intersectedTriangle.normal;
-                }
-                float distance = glm::length(camera.light - intersection.intersectionPoint);
-                float proximity = 1.0f/9.0f * 1.0f/(distance*distance);
-                float angle = std::fmax(glm::dot(glm::normalize(camera.light - intersection.intersectionPoint), glm::normalize(normal)), 0);
-                float specular = specularValue(intersection, normal, 64, camera);
-                //brightness = ambient + (proximity * 1.0f + angle * 1.0f);
-				brightness = ambient + (proximity * 1.0f + angle * 1.0f) * inShadow(model, intersection, camera.light, 1);
-                brightness = glm::clamp(brightness, 0.0f, 1.0f);
-
-				Colour colour = getColour(intersection, model[intersection.triangleIndex]);
-
-
-				int red = glm::min(int(colour.red*brightness + specular * 255.0f * 0.5f), 255);
-				int green = glm::min(int(colour.green*brightness + specular * 255.0f * 0.5f), 255);
-				int blue = glm::min(int(colour.blue*brightness + specular * 255.0f * 0.5f), 255);
-				uint32_t pixelColour = (255 << 24) + (red << 16) + (green << 8) + blue;
-				window.setPixelColour(j, i, pixelColour);
+ 				glm::vec3 normal = glm::normalize(getNormal(intersection, model));
+				colour = getColour(model, kdTree, intersection, rayDirection, normal, model[intersection.triangleIndex], camera, 6);
+			} else {
+				colour = getEnvironment(rayDirection, camera);
 			}
+			uint32_t pixelColour = (255 << 24) + (colour.red << 16) + (colour.green << 8) + colour.blue;
+			window.setPixelColour(j, i, pixelColour);
+			window.renderFrame();
 		}
 	}
 }

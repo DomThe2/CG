@@ -7,6 +7,7 @@
 #include "ModelTriangle.h"
 #include "Colour.h"
 #include "Utils.h"
+#include "cameraUtils.h"
 #include "camera.h"
 #include "face.h"
 #include "TextureMap.h"
@@ -44,7 +45,6 @@ void drawFlatBottomTexturedTriangle(DrawingWindow &window, float (&zbuf)[HEIGHT]
 	std::vector<float> rightU = interpolateSingleFloats(v0.texturePoint.x, v2.texturePoint.x, numSteps);
 	std::vector<float> rightV = interpolateSingleFloats(v0.texturePoint.y, v2.texturePoint.y, numSteps);
 	std::vector<float> Y = interpolateSingleFloats(v0.y, v1.y, numSteps);
-	
 	for (int i = 0; i<numSteps; i++) {
 		CanvasPoint from = CanvasPoint(leftX[i], Y[i], leftD[i]);
 		CanvasPoint to = CanvasPoint(rightX[i], Y[i], rightD[i]);
@@ -80,7 +80,6 @@ void texturedTriangle(DrawingWindow &window, float (&zbuf)[HEIGHT][WIDTH], Canva
 	float d = (v0.depth + ((v1.y - v0.y) / (v2.y - v0.y)) * (v2.depth - v0.depth));
 	CanvasPoint midpoint = CanvasPoint(x, v1.y, d);
 	midpoint.texturePoint = TexturePoint(u, v);
-
 	drawFlatBottomTexturedTriangle(window, zbuf, v0, v1, midpoint, texture);
 	drawFlatBottomTexturedTriangle(window, zbuf, v2, v1, midpoint, texture);
 }
@@ -95,7 +94,7 @@ void triangleTextured3D(DrawingWindow &window, float (&zbuf)[HEIGHT][WIDTH], Fac
 	v0.depth += epsilon;
 	v1.depth += epsilon;
 	v2.depth += epsilon;
-	
+
 	CanvasTriangle flatTriangle = CanvasTriangle(v0, v1, v2);
 	texturedTriangle(window, zbuf, flatTriangle, face.texture, face.triangle.texturePoints);
 }
