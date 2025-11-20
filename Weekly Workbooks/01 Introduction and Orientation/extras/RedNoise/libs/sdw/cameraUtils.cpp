@@ -8,14 +8,6 @@
 #include "camera.h"
 #include "Utils.h"
 
-void lookAt(glm::vec3 location, cameraClass &camera) {
-	glm::vec3 forward = glm::normalize(camera.cameraPos - location);
-	glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0,1,0), forward));
-	glm::vec3 up = glm::cross(forward, right);
-	camera.cameraOri = glm::mat3(right, up, forward);
-	
-}
-
 CanvasPoint projectVertexOntoCanvasPoint(cameraClass &camera, glm::vec3 vertexPosition) {
 	glm::vec3 relativePosition = glm::transpose(camera.cameraOri) * (vertexPosition - camera.cameraPos);
     float x = std::round((camera.focalLength * (relativePosition.x / relativePosition.z)) * (WIDTH/2.0f) + (WIDTH / 2.0f));	

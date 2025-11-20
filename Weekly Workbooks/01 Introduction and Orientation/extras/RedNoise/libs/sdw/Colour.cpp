@@ -25,6 +25,14 @@ Colour Colour::operator*(glm::vec3 v) const {
     );
 }
 
+Colour Colour::operator+(glm::vec3 v) const {
+    return Colour(
+        static_cast<int>(red   + v[0]),
+        static_cast<int>(green + v[1]),
+        static_cast<int>(blue  + v[2])
+    );
+}
+
 Colour Colour::operator+(const Colour& other) const {
     return Colour(
         red   + other.red,

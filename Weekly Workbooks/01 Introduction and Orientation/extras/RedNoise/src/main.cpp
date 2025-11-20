@@ -40,7 +40,7 @@ void drawWireFrame(DrawingWindow &window, std::vector<Face>& model, float (&zbuf
 
 	if (camera.orbit) {
 		camera.cameraPos = xMatrix(0.02, -1) * camera.cameraPos;
-		lookAt(glm::vec3(0,0,0), camera);
+		camera.lookAt(glm::vec3(0,0,0));
 	}
 		
 	for (int i=0; i<model.size(); i++) {	
@@ -64,7 +64,7 @@ void drawRasterised(DrawingWindow &window, std::vector<Face>& model, float (&zbu
 
 	if (camera.orbit) {
 		camera.cameraPos = xMatrix(0.02, -1) * camera.cameraPos;
-		lookAt(glm::vec3(0,0,0), camera);
+		camera.lookAt(glm::vec3(0,0,0));
 	}
 		
 	for (int i=0; i<model.size(); i++) {	
@@ -78,35 +78,39 @@ void drawRasterised(DrawingWindow &window, std::vector<Face>& model, float (&zbu
 
 int main(int argc, char *argv[]) {
 	srand(time(0));
-	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
-	SDL_Event event;
-	
 	float zbuf[HEIGHT][WIDTH];
 	//std::tuple<std::map<std::string, Colour>, std::map<std::string, TextureMap>> palette = loadPalette("sphere.mtl");
 	//std::vector<Face> output = loadTriangle("planet_spacship.obj", palette, 0.35);
-
 	//std::tuple<std::map<std::string, Colour>, std::map<std::string, TextureMap>> palette = loadPalette("textured-cornell-box.mtl");
 	std::vector<Face> output = loadTriangle("textured-cornell-box.obj", 0.35);
 
-
-
 	cameraClass camera;
 	camera.light = glm::vec3(0, 2.5*0.35, 0);
-	//camera.light = glm::vec3(0, 1*0.35, 0);
-	//camera.light = glm::vec3(3, 3, 3);
 	camera.environment = TextureMap("skybox.ppm");
 	camera.cameraPos = glm::vec3(0.0, 0.0, 4.0);
 	camera.cameraOri = glm::mat3(1.0f);
 	camera.orbit = false;
 	camera.focalLength = 2.0;
-	camera.mode = "raytraced";
+	camera.focalDistance = 4.0;
+	camera.mode = "wireframe";
+	camera.lensRadius = 0.0f; 
+	//camera.light = glm::vec3(0, 1*0.35, 0);
+	//camera.light = glm::vec3(3, 3, 3);
 
 	std::vector<photon> lightMap;
-	lightMap = photonMap(window, output, 10000, camera);
-	storePhotonMap(lightMap, "photonMap.txt");
-	//lightMap = getPhotonMap("photonMap.txt");
+	std::ifstream f("photonMap.txt");
+    if (f.good()) {
+		std::cout<<"Loading photon map"<<std::endl;
+		lightMap = getPhotonMap("photonMap.txt");
+	} else {
+		std::cout<<"Building photon map"<<std::endl;
+		lightMap = photonMap(output, 10000, camera);
+		storePhotonMap(lightMap, "photonMap.txt");
+	}
 	node* kdTree = buildkdTree(lightMap, 0, lightMap.size()-1, 0);
 
+	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
+	SDL_Event event;
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		float start_time = SDL_GetTicks();

@@ -7,4 +7,4 @@
 #include "Utils.h"
 
 void drawRaytraced(DrawingWindow &window, std::vector<Face> &model, node* kdTree, cameraClass &camera); 
-std::vector<photon> photonMap(DrawingWindow &window, std::vector<Face> &model, int count, cameraClass &camera);
+std::vector<photon> photonMap(std::vector<Face> &model, int count, cameraClass &camera);

@@ -116,10 +116,10 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 			std::vector<std::string> vertex1 = split(splitLine[1], '/');
 			std::vector<std::string> vertex2 = split(splitLine[2], '/');
 			std::vector<std::string> vertex3 = split(splitLine[3], '/');
-			Colour colour = Colour(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]) * 255.0f;
+			Colour colour = Colour(mat.diffuse[0]*255.0f, mat.diffuse[1]*255.0f, mat.diffuse[2]*255.0f);
 			ModelTriangle triangle = ModelTriangle(vertices[std::stoi(vertex1[0])-1], vertices[std::stoi(vertex2[0])-1], vertices[std::stoi(vertex3[0])-1], colour);
 			Face face;
-			if (vertex1[1] != "" && vertex2[1] != "" && vertex3[1] != "") {
+			if (mat.textured) {
 				triangle.texturePoints[0] = TexturePoint(texturevertices[std::stoi(vertex1[1])-1][0] * mat.texture.width, texturevertices[std::stoi(vertex1[1])-1][1] * mat.texture.height); 
 				triangle.texturePoints[1] = TexturePoint(texturevertices[std::stoi(vertex2[1])-1][0] * mat.texture.width, texturevertices[std::stoi(vertex2[1])-1][1] * mat.texture.height);
 				triangle.texturePoints[2] = TexturePoint(texturevertices[std::stoi(vertex3[1])-1][0] * mat.texture.width, texturevertices[std::stoi(vertex3[1])-1][1] * mat.texture.height);
