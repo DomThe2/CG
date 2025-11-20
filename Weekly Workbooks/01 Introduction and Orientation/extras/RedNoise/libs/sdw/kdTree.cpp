@@ -28,16 +28,16 @@ struct thirdCol {
 	}
 };
 
-struct compareDistance {
-    bool operator()(const std::pair<float, glm::vec3>& a,
-                    const std::pair<float, glm::vec3>& b) const {
-        return a.first < b.first;
-    }
-};
+//struct compareDistance {
+//    bool operator()(photon& a, photon& b) const {
+//        return a.distance < b.distance;
+//    }
+//};
 
 struct node {
 	photon p;
 	int dimension;
+	float distance;
 	node* left = nullptr;
 	node* right = nullptr;
 };
@@ -78,14 +78,15 @@ node* buildkdTree(std::vector<photon>& photons, int start, int end, int dimensio
 	return midNode;
 }
 
-void searchkdTree(node* root, std::priority_queue<float>& result, glm::vec3 point, int number) {
+void searchkdTree(node* root, std::priority_queue<photon>& result, glm::vec3 point, int number) {
 	if (root==nullptr) return;
 	float distance = glm::length(root->p.location - point);
+	root->p.distance = distance;
 	if (result.size() < number) {
-		result.emplace(distance);
-	} else if (distance < result.top()) {
+		result.emplace(root->p);
+	} else if (distance < result.top().distance) {
 		result.pop();
-		result.emplace(distance);
+		result.emplace(root->p);
 	}
 	float delta;
 	if (root->dimension == 0) delta = point.x - root->p.location.x;
@@ -94,10 +95,10 @@ void searchkdTree(node* root, std::priority_queue<float>& result, glm::vec3 poin
 
 	if (delta <= 0) {
 		searchkdTree(root->left, result, point, number);
-		if ((result.size() < number) || (delta*delta < result.top()*result.top())) searchkdTree(root->right, result, point, number);
+		if ((result.size() < number) || (delta*delta < result.top().distance*result.top().distance)) searchkdTree(root->right, result, point, number);
 	} else {
 		searchkdTree(root->right, result, point, number);
-		if ((result.size() < number) || (delta*delta < result.top()*result.top())) searchkdTree(root->left, result, point, number);
+		if ((result.size() < number) || (delta*delta < result.top().distance*result.top().distance)) searchkdTree(root->left, result, point, number);
 	}
 
 }

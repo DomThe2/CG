@@ -18,10 +18,10 @@ struct material {
 	bool textured = false;
 	float opacity;
 	int specularExponent;
-	Colour transmission;
-	Colour diffuse;
-	Colour specular;
-	Colour ambient;
+	glm::vec3 transmission;
+	glm::vec3 diffuse;
+	glm::vec3 specular;
+	glm::vec3 ambient;
 	TextureMap texture;
 };
 
@@ -30,7 +30,7 @@ void storePhotonMap(std::vector<photon> lightMap, std::string filename) {
 	for (int i=0; i<lightMap.size(); i++) {
 		file << lightMap[i].location[0] << " " << lightMap[i].location[1] << " " << lightMap[i].location[2] 
 		<< " " << lightMap[i].incidence[0] << " " << lightMap[i].incidence[1] << " " << lightMap[i].incidence[2] 
-		<< " " << lightMap[i].power.red << " " << lightMap[i].power.green << " " << lightMap[i].power.blue << "\n";
+		<< " " << lightMap[i].power[0] << " " << lightMap[i].power[1] << " " << lightMap[i].power[2] << "\n";
 	}
 	file.close();
 }
@@ -47,7 +47,7 @@ std::vector<photon> getPhotonMap(std::string filename) {
 		} else {
 			p.location = glm::vec3(std::stof(splitLine[0]), std::stof(splitLine[1]), std::stof(splitLine[2]));
 			p.incidence = glm::vec3(std::stof(splitLine[3]), std::stof(splitLine[4]), std::stof(splitLine[5]));
-			p.power = Colour(std::stoi(splitLine[6]), std::stoi(splitLine[7]), std::stoi(splitLine[8]));
+			p.power = glm::vec3(std::stof(splitLine[6]), std::stof(splitLine[7]), std::stof(splitLine[8]));
 			photonMap.push_back(p);
 		}
 	}
@@ -70,13 +70,13 @@ std::map<std::string, material> loadPalette(std::string file) {
 			mat.textured = false;
 			name = splitLine[1];
 		} else if (splitLine[0] == "Kd") {
-			mat.diffuse = Colour(std::stof(splitLine[1])*255, std::stof(splitLine[2])*255, std::stof(splitLine[3])*255);
+			mat.diffuse = glm::vec3(std::stof(splitLine[1]), std::stof(splitLine[2]), std::stof(splitLine[3]));
 		} else if (splitLine[0] == "Ks") {
-			mat.specular = Colour(std::stof(splitLine[1])*255, std::stof(splitLine[2])*255, std::stof(splitLine[3])*255);
+			mat.specular = glm::vec3(std::stof(splitLine[1]), std::stof(splitLine[2]), std::stof(splitLine[3]));
 		} else if (splitLine[0] == "Ka") {
-			mat.ambient = Colour(std::stof(splitLine[1])*255, std::stof(splitLine[2])*255, std::stof(splitLine[3])*255);
+			mat.ambient = glm::vec3(std::stof(splitLine[1]), std::stof(splitLine[2]), std::stof(splitLine[3]));
 		} else if (splitLine[0] == "Tf") {
-			mat.transmission = Colour(std::stof(splitLine[1])*255, std::stof(splitLine[2])*255, std::stof(splitLine[3])*255);
+			mat.transmission = glm::vec3(std::stof(splitLine[1]), std::stof(splitLine[2]), std::stof(splitLine[3]));
 		} else if (splitLine[0] == "Ns") {
 			mat.specularExponent = std::stoi(splitLine[1]);
 		} else if (splitLine[0] == "d") {
@@ -113,10 +113,10 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 		} else if (splitLine[0] == "vt") {
 			texturevertices.push_back(glm::vec2(std::stof(splitLine[1]), std::stof(splitLine[2])));
 		} else if (splitLine[0] == "f") {
-			colour = mat.diffuse;
 			std::vector<std::string> vertex1 = split(splitLine[1], '/');
 			std::vector<std::string> vertex2 = split(splitLine[2], '/');
 			std::vector<std::string> vertex3 = split(splitLine[3], '/');
+			Colour colour = Colour(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]) * 255.0f;
 			ModelTriangle triangle = ModelTriangle(vertices[std::stoi(vertex1[0])-1], vertices[std::stoi(vertex2[0])-1], vertices[std::stoi(vertex3[0])-1], colour);
 			Face face;
 			if (vertex1[1] != "" && vertex2[1] != "" && vertex3[1] != "") {

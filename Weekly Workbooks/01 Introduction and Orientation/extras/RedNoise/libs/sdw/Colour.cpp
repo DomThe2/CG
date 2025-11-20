@@ -1,5 +1,6 @@
 #include "Colour.h"
 #include <utility>
+#include <glm/glm.hpp>
 
 Colour::Colour() = default;
 Colour::Colour(int r, int g, int b) : red(r), green(g), blue(b) {}
@@ -13,6 +14,14 @@ Colour Colour::operator*(float s) const {
         static_cast<int>(red   * s),
         static_cast<int>(green * s),
         static_cast<int>(blue  * s)
+    );
+}
+
+Colour Colour::operator*(glm::vec3 v) const {
+    return Colour(
+        static_cast<int>(red   * v[0]),
+        static_cast<int>(green * v[1]),
+        static_cast<int>(blue  * v[2])
     );
 }
 

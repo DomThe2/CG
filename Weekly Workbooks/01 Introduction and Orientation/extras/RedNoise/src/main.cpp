@@ -27,7 +27,7 @@
 // make 
 // make speedy
 
-void drawWireFrame(DrawingWindow &window, std::vector<Face>& model, float (&zbuf)[HEIGHT][WIDTH], std::vector<photon> lightMap, cameraClass &camera) {
+void drawWireFrame(DrawingWindow &window, std::vector<Face>& model, float (&zbuf)[HEIGHT][WIDTH], cameraClass &camera) {
 	for (int i=0; i<HEIGHT; i++) {
 		for (int j=0; j<WIDTH; j++) {
 			window.setPixelColour(j, i, 255<<24);
@@ -35,12 +35,6 @@ void drawWireFrame(DrawingWindow &window, std::vector<Face>& model, float (&zbuf
 	}
 	CanvasPoint light = projectVertexOntoCanvasPoint(camera, camera.light);
 	window.setPixelColour(light.x, light.y, 0xFFFFFFFF);
-	for (int i=0; i<lightMap.size(); i++) {
-		CanvasPoint point = projectVertexOntoCanvasPoint(camera, lightMap[i].location);
-		uint32_t pixelColour = (255 << 24) + (lightMap[i].power.red << 16) + (lightMap[i].power.green << 8) + lightMap[i].power.blue;
-		window.setPixelColour(point.x, point.y, pixelColour);
-	}
-		
 
 	std::fill(&zbuf[0][0], &zbuf[0][0] + HEIGHT * WIDTH, 0.0f);
 
@@ -54,9 +48,9 @@ void drawWireFrame(DrawingWindow &window, std::vector<Face>& model, float (&zbuf
 		CanvasPoint v1 = projectVertexOntoCanvasPoint(camera, model[i].triangle.vertices[1]);
 		CanvasPoint v2 = projectVertexOntoCanvasPoint(camera, model[i].triangle.vertices[2]);
 
-		drawLine(window, zbuf, v0, v1, model[i].diffuse);
-		drawLine(window, zbuf, v1, v2, model[i].diffuse);
-		drawLine(window, zbuf, v2, v0, model[i].diffuse);
+		drawLine(window, zbuf, v0, v1, model[i].getColour());
+		drawLine(window, zbuf, v1, v2, model[i].getColour());
+		drawLine(window, zbuf, v2, v0, model[i].getColour());
 	}
 }
 
@@ -97,19 +91,20 @@ int main(int argc, char *argv[]) {
 
 
 	cameraClass camera;
-	camera.light = glm::vec3(0, 1.0*0.35, 0);
+	camera.light = glm::vec3(0, 2.5*0.35, 0);
+	//camera.light = glm::vec3(0, 1*0.35, 0);
 	//camera.light = glm::vec3(3, 3, 3);
 	camera.environment = TextureMap("skybox.ppm");
 	camera.cameraPos = glm::vec3(0.0, 0.0, 4.0);
 	camera.cameraOri = glm::mat3(1.0f);
 	camera.orbit = false;
 	camera.focalLength = 2.0;
-	camera.mode = "wireframe";
+	camera.mode = "raytraced";
 
 	std::vector<photon> lightMap;
 	lightMap = photonMap(window, output, 10000, camera);
 	storePhotonMap(lightMap, "photonMap.txt");
-	//lightMap = getPhotonMap("photonMap.txt"); // FIX
+	//lightMap = getPhotonMap("photonMap.txt");
 	node* kdTree = buildkdTree(lightMap, 0, lightMap.size()-1, 0);
 
 	while (true) {
@@ -121,7 +116,7 @@ int main(int argc, char *argv[]) {
 		} else if (camera.mode == "rasterised") {
 			drawRasterised(window, output, zbuf, camera);
 		} else if (camera.mode == "wireframe") {
-			drawWireFrame(window, output, zbuf, lightMap, camera);
+			drawWireFrame(window, output, zbuf, camera);
 		}
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();

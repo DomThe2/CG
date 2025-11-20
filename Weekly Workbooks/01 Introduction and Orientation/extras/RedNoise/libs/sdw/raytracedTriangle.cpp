@@ -19,9 +19,7 @@
 #include "raytracedTriangle.h"
 
 //TODO:
-// - light raytracing off mirrors and glass
-// - improve shadowing
-// - fix broken refraction
+// - add diffuse scattering
 
 glm::vec3 getBarycentricOfIntersection(RayTriangleIntersection intersection) {
 	return convertToBarycentricCoordinates(intersection.intersectedTriangle.vertices[0], intersection.intersectedTriangle.vertices[1], 
@@ -115,6 +113,31 @@ Colour getEnvironment(glm::vec3 ray, cameraClass &camera) {
     int b = raw & 0xFF;
     return Colour(r, g, b);
 }
+glm::vec3 searchkdTreeForN(node* kdTree, RayTriangleIntersection intersection, glm::vec3 normal, int N) {
+	std::priority_queue<photon> nearby;
+	searchkdTree(kdTree, nearby, intersection.intersectionPoint, N);
+	float radius = nearby.top().distance;
+	float area = M_PI * radius * radius;
+	glm::vec3 energy = glm::vec3(0,0,0);
+	while(!nearby.empty()) {
+		glm::vec3 w = glm::normalize(-nearby.top().incidence);
+		float angle = std::fmax(glm::dot(w, normal), 0.0f);
+		energy += nearby.top().power * angle;
+		nearby.pop();
+	}
+	return energy / (float)(M_PI * area);
+}
+
+glm::vec3 randomDiffuse(glm::vec3 normal) {
+	float z = (float(rand())/(float)RAND_MAX); 
+	float t = 2.0f * M_PI * (float(rand())/(float)RAND_MAX);
+	float r = sqrt(1 - z*z);
+	glm::vec3 direction = glm::normalize(glm::vec3(r * cos(t), r * sin(t), z));
+
+	glm::vec3 u = glm::normalize(glm::cross(glm::vec3(0,1,0), normal));
+	glm::vec3 v = glm::cross(normal, u);
+	return glm::normalize(u*direction.x + v*direction.y + normal*direction.z);
+}
 
 Colour getColour(std::vector<Face> &model, node* kdTree, RayTriangleIntersection intersection, glm::vec3 ray, glm::vec3 normal, Face face, cameraClass &camera, int recursionDepth) {
 	if (intersection.distanceFromCamera == std::numeric_limits<float>::infinity()) {
@@ -161,61 +184,46 @@ Colour getColour(std::vector<Face> &model, node* kdTree, RayTriangleIntersection
         	}
 		}
 	} else {
-		Colour colour;
+		glm::vec3 colour;
 		if (face.textured) {
 			glm::vec3 barycentric = getBarycentricOfIntersection(intersection);
 			float u = barycentric.z * face.triangle.texturePoints[0].x + barycentric.x * face.triangle.texturePoints[1].x + barycentric.y * face.triangle.texturePoints[2].x;
 			float v = barycentric.z * face.triangle.texturePoints[0].y + barycentric.x * face.triangle.texturePoints[1].y + barycentric.y * face.triangle.texturePoints[2].y;
 			uint32_t raw = face.texture.pixels[(int)v * face.texture.width + (int)u];
-			int r = (raw >> 16) & 0xFF;
-			int g = (raw >> 8) & 0xFF;
-			int b = raw & 0xFF;
-			colour = Colour(r,g,b);
+			float r = ((raw >> 16) & 0xFF)/255.0f;
+			float g = ((raw >> 8) & 0xFF)/255.0f;
+			float b = (raw & 0xFF)/255.0f;
+			colour = glm::vec3(r,g,b);
 		} else {
 			colour = face.diffuse;
 		}
 
-		float ambient = 0.4f;
+		float ambient = 0.2f; 
 		float distance = glm::length(camera.light - intersection.intersectionPoint);
-        float proximity = 1.0f/9.0f * 1.0f/(distance*distance);
-        float angle = std::fmax(glm::dot(glm::normalize(camera.light - intersection.intersectionPoint), glm::normalize(normal)), 0);
-        float specular = specularValue(intersection, normal, face.specularExponent, camera);
+		float proximity = 1.0f / (distance * distance + 1.0f); 
+		float angle = std::fmax(glm::dot(glm::normalize(camera.light - intersection.intersectionPoint), normal), 0.0f);
+		float specular = specularValue(intersection, normal, face.specularExponent, camera);
+		float shadow = (0.2f + inShadow(model, intersection, camera.light, 2));
 		
-		std::priority_queue<float> nearby;
-		searchkdTree(kdTree, nearby, intersection.intersectionPoint, 100);
 		
-		float energy = 0.0;
-		float radius = nearby.top();
-		float area = M_PI * radius * radius;
-		float shadow = (0.2f + inShadow(model, intersection, camera.light, 1));
-		for (int i=0; i<nearby.size(); i++) {
-			nearby.pop();
-			if (shadow<0.5f) {
-				energy += nearby.top() * 0.001f;
-			} else if (100/area > 50.0f) {
-				energy += (100/area - 50.0f) * 0.01f;
-			}
-		}
+		glm::vec3 photonTerm = searchkdTreeForN(kdTree, intersection, normal, 500) * 2.0f + searchkdTreeForN(kdTree, intersection, normal, 50);
+		glm::vec3 ambientTerm = face.ambient * ambient;
+		glm::vec3 diffuseTerm = colour * angle * proximity * shadow;
+		glm::vec3 specularTerm = face.specular * specular * shadow;
+		glm::vec3 total = glm::min((ambientTerm + diffuseTerm + specularTerm + photonTerm), glm::vec3(1.0f));
+		Colour output = Colour(total[0]*255.0f, total[1]*255.0f, total[2]*255.0f);
 
-		Colour ambientTerm  = face.ambient * ambient;
-		Colour diffuseTerm  = colour * angle * proximity;
-		Colour specularTerm = face.specular * specular;
-		Colour photonTerm   = face.diffuse * energy;
-
-		return (ambientTerm + diffuseTerm + specularTerm); //+ photonTerm
+		return (output);
 	}
 }
 
-void traceRay(std::vector<Face> &model, std::vector<photon> &output, glm::vec3 origin, glm::vec3 direction, Colour power, int recursionDepth) {
+void traceRay(std::vector<Face> &model, std::vector<photon> &output, glm::vec3 origin, glm::vec3 direction, glm::vec3 power, int recursionDepth) {
 	RayTriangleIntersection intersection = getClosestIntersection(model, origin, direction, -1);
 	Colour colour;
 	photon p;
 	if (recursionDepth <= 0) return;
 	else if ((intersection.triangleIndex >= 0) && (intersection.distanceFromCamera != std::numeric_limits<float>::infinity())) {
 		glm::vec3 location = glm::vec3(intersection.intersectionPoint);
-		p.location = location;
-		p.power = power;
-		p.incidence = direction;
 		glm::vec3 normal = getNormal(intersection, model);
 		if (model[intersection.triangleIndex].opacity < 1.0f) { //Material transparent
 			glm::vec3 refracted;
@@ -233,19 +241,24 @@ void traceRay(std::vector<Face> &model, std::vector<photon> &output, glm::vec3 o
 				traceRay(model, output, intersection.intersectionPoint + R*0.05f, R, power, recursionDepth-1);
 			} else { //Refraction
 				refracted = glm::normalize(refracted);
-				Colour newPower = power * model[intersection.triangleIndex].transmission;
+				glm::vec3 newPower = power * model[intersection.triangleIndex].transmission;
 				traceRay(model, output, intersection.intersectionPoint + refracted*0.001f, refracted, newPower, recursionDepth-1);
 			}
 		} else {
-			glm::vec3 R = glm::normalize(glm::reflect(direction, normal));
 			if (model[intersection.triangleIndex].mirror) { //Mirror, reflect all
+				glm::vec3 R = glm::normalize(glm::reflect(direction, normal));
 				traceRay(model, output, intersection.intersectionPoint + normal*0.05f, R, power, recursionDepth-1);
 			} else { //Other surface, russian roulette for reflection
+				glm::vec3 newPower = power * model[intersection.triangleIndex].diffuse;
+				p.location = location;
+				p.power = newPower;
+				p.incidence = direction;
 				output.push_back(p);
-				float roulette = ((float)rand()/(float)RAND_MAX < 0.5f); // reflects with 50% probability
+				float prob = fmax(model[intersection.triangleIndex].diffuse[0], fmax(model[intersection.triangleIndex].diffuse[1], model[intersection.triangleIndex].diffuse[2]));
+				float roulette = ((float)rand()/(float)RAND_MAX < prob); // reflects with 50% probability
 				if (roulette) {
-					Colour newPower = power * model[intersection.triangleIndex].diffuse;
-					traceRay(model, output, intersection.intersectionPoint + normal*0.05f, R, newPower, recursionDepth-1);
+					glm::vec3 direction = randomDiffuse(normal);
+					traceRay(model, output, intersection.intersectionPoint + normal*0.05f, direction, newPower/prob, recursionDepth-1);
 				}
 			}
 		}
@@ -261,7 +274,8 @@ std::vector<photon> photonMap(DrawingWindow &window, std::vector<Face> &model, i
 		float t = 2.0f * M_PI * (float(rand())/(float)RAND_MAX);
 		float r = sqrt(1 - z*z);
 		glm::vec3 direction = glm::vec3(r * cos(t), r * sin(t), z);
-		traceRay(model, map, camera.light, direction, Colour(1,1,1), 6);
+		float power = 1.0f;
+		traceRay(model, map, camera.light, direction, glm::vec3(power/count), 6);
 		if (i%1000 == 0) std::cout<<(float)i/(float)count<<std::endl;
 	}
 	return map;

@@ -10,7 +10,12 @@
 struct photon {
     glm::vec3 location;
     glm::vec3 incidence;
-    Colour power;
+    glm::vec3 power;
+    float distance;
+    
+    bool operator<(const photon& other) const {
+        return distance < other.distance; 
+    }
 };
 
 std::vector<std::string> split(const std::string &line, char delimiter);
