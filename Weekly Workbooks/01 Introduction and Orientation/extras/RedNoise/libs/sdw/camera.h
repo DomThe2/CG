@@ -2,6 +2,7 @@
 
 #include <vector>
 #include "TextureMap.h"
+#include "CanvasPoint.h"
  
 #define WIDTH 320
 #define HEIGHT 240
@@ -15,8 +16,43 @@ class cameraClass {
 		float focalLength;
 		float focalDistance;
 		float lensRadius;
+		float viewportHeight; 
+		float viewportWidth;
 		bool orbit;
 		TextureMap environment;
+
+		CanvasPoint projectVertexOntoCanvasPoint(glm::vec3 vertexPosition) {
+			glm::vec3 relativePosition = glm::transpose(cameraOri) * (vertexPosition - cameraPos);
+			float x = std::round((focalLength * (relativePosition.x / relativePosition.z)) * (WIDTH/2.0f) + (WIDTH / 2.0f));	
+			float y = std::round((focalLength * (relativePosition.y / relativePosition.z)) * (WIDTH/2.0f) + (HEIGHT / 2.0f));
+			float depth = -1.0/relativePosition.z;
+			x = WIDTH - x;
+			return CanvasPoint(x, y, depth);
+		} 
+
+		void handleEvent(SDL_Event event, DrawingWindow &window) {
+			if (event.type == SDL_KEYDOWN) {
+				if (event.key.keysym.sym == SDLK_o) orbit = !orbit;
+				else if (event.key.keysym.sym == SDLK_a) cameraPos.x -= 0.05f;
+				else if (event.key.keysym.sym == SDLK_d) cameraPos.x += 0.05f;
+				else if (event.key.keysym.sym == SDLK_w) cameraPos.y+= 0.05f;
+				else if (event.key.keysym.sym == SDLK_s) cameraPos.y -= 0.05f;
+				else if (event.key.keysym.sym == SDLK_z) cameraPos.z -= 0.05f;
+				else if (event.key.keysym.sym == SDLK_x) cameraPos.z += 0.05f;
+				else if (event.key.keysym.sym == SDLK_h) cameraPos = xMatrix(0.01, -1) * cameraPos;
+				else if (event.key.keysym.sym == SDLK_k) cameraPos = xMatrix(0.01, 1) * cameraPos;
+				else if (event.key.keysym.sym == SDLK_u) cameraPos = yMatrix(0.01, -1) * cameraPos;
+				else if (event.key.keysym.sym == SDLK_j) cameraPos = yMatrix(0.01, 1) * cameraPos; 
+				else if (event.key.keysym.sym == SDLK_UP) cameraOri = yMatrix(0.01, -1) * cameraOri;
+				else if (event.key.keysym.sym == SDLK_DOWN) cameraOri = yMatrix(0.01, 1) * cameraOri;
+				else if (event.key.keysym.sym == SDLK_LEFT) cameraOri = xMatrix(0.01, -1) * cameraOri;
+				else if (event.key.keysym.sym == SDLK_RIGHT) cameraOri = xMatrix(0.01, 1) * cameraOri;
+				else if (event.key.keysym.sym == SDLK_RETURN) toggleMode();
+			} else if (event.type == SDL_MOUSEBUTTONDOWN) { 
+				window.savePPM("output.ppm");
+				window.saveBMP("output.bmp");
+			}
+		}
 
 		glm::vec3 getCameraLocation() {
 			float theta = 2 * M_PI * (float(rand())/(float)RAND_MAX);

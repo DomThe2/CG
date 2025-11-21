@@ -100,6 +100,7 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 	Colour colour = Colour(255, 0, 0);
 	bool mirrored = false;
 	bool phong = false;
+	float fuzziness = 0.0f;
 	std::map<std::string, material> palette;
 	material mat;
 	while (getline(obj, line)) {
@@ -129,6 +130,7 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 			
 			triangle.normal = glm::normalize(glm::cross((triangle.vertices[0] - triangle.vertices[1]), (triangle.vertices[0] - triangle.vertices[2])));
 			face.mirror = mirrored;
+			face.fuzziness = fuzziness;
 			face.opacity = mat.opacity;
 			face.specularExponent = mat.specularExponent;
 			face.transmission = mat.transmission;
@@ -144,6 +146,11 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 		} else if (splitLine[0] == "usemtl" && (splitLine[1]=="Mirror")) {
 			mat = palette.at(splitLine[1]);
 			mirrored = true; // TEMP
+			fuzziness = 0.0f;
+		} else if (splitLine[0] == "usemtl" && (splitLine[1]=="Metal")) {
+			mat = palette.at(splitLine[1]);
+			mirrored = true; // TEMP
+			fuzziness = 0.4;
 		} else if (splitLine[0] == "usemtl") {
 			mat = palette.at(splitLine[1]);
 			mirrored = false;

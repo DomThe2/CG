@@ -19,7 +19,6 @@
 #include <raytracedTriangle.h>
 #include <camera.h>
 #include <face.h>
-#include <cameraUtils.h>
 #include <parser.h>
 #include <kdTree.h>
 
@@ -33,7 +32,7 @@ void drawWireFrame(DrawingWindow &window, std::vector<Face>& model, float (&zbuf
 			window.setPixelColour(j, i, 255<<24);
 		}	
 	}
-	CanvasPoint light = projectVertexOntoCanvasPoint(camera, camera.light);
+	CanvasPoint light = camera.projectVertexOntoCanvasPoint(camera.light);
 	window.setPixelColour(light.x, light.y, 0xFFFFFFFF);
 
 	std::fill(&zbuf[0][0], &zbuf[0][0] + HEIGHT * WIDTH, 0.0f);
@@ -44,9 +43,9 @@ void drawWireFrame(DrawingWindow &window, std::vector<Face>& model, float (&zbuf
 	}
 		
 	for (int i=0; i<model.size(); i++) {	
-		CanvasPoint v0 = projectVertexOntoCanvasPoint(camera, model[i].triangle.vertices[0]);
-		CanvasPoint v1 = projectVertexOntoCanvasPoint(camera, model[i].triangle.vertices[1]);
-		CanvasPoint v2 = projectVertexOntoCanvasPoint(camera, model[i].triangle.vertices[2]);
+		CanvasPoint v0 = camera.projectVertexOntoCanvasPoint(model[i].triangle.vertices[0]);
+		CanvasPoint v1 = camera.projectVertexOntoCanvasPoint(model[i].triangle.vertices[1]);
+		CanvasPoint v2 = camera.projectVertexOntoCanvasPoint(model[i].triangle.vertices[2]);
 
 		drawLine(window, zbuf, v0, v1, model[i].getColour());
 		drawLine(window, zbuf, v1, v2, model[i].getColour());
@@ -94,6 +93,8 @@ int main(int argc, char *argv[]) {
 	camera.focalDistance = 4.0;
 	camera.mode = "wireframe";
 	camera.lensRadius = 0.0f; 
+	camera.viewportHeight = 1.5;
+	camera.viewportWidth = camera.viewportHeight * ((float)WIDTH/(float)HEIGHT);
 	//camera.light = glm::vec3(0, 1*0.35, 0);
 	//camera.light = glm::vec3(3, 3, 3);
 
@@ -104,7 +105,7 @@ int main(int argc, char *argv[]) {
 		lightMap = getPhotonMap("photonMap.txt");
 	} else {
 		std::cout<<"Building photon map"<<std::endl;
-		lightMap = photonMap(output, 10000, camera);
+		lightMap = photonMap(output, 1000000, camera);
 		storePhotonMap(lightMap, "photonMap.txt");
 	}
 	node* kdTree = buildkdTree(lightMap, 0, lightMap.size()-1, 0);
@@ -114,9 +115,9 @@ int main(int argc, char *argv[]) {
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		float start_time = SDL_GetTicks();
-		if (window.pollForInputEvents(event)) handleEvent(event, window, camera);
+		if (window.pollForInputEvents(event)) camera.handleEvent(event, window);
 		if (camera.mode == "raytraced") {
-			drawRaytraced(window, output, kdTree, camera);
+			drawRaytraced(window, output, kdTree, camera, 4);
 		} else if (camera.mode == "rasterised") {
 			drawRasterised(window, output, zbuf, camera);
 		} else if (camera.mode == "wireframe") {

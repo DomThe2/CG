@@ -7,7 +7,6 @@
 #include "ModelTriangle.h"
 #include "Colour.h"
 #include "Utils.h"
-#include "cameraUtils.h"
 #include "camera.h"
 #include "face.h"
 #include "TextureMap.h"
@@ -85,9 +84,9 @@ void texturedTriangle(DrawingWindow &window, float (&zbuf)[HEIGHT][WIDTH], Canva
 }
 
 void triangleTextured3D(DrawingWindow &window, float (&zbuf)[HEIGHT][WIDTH], Face face, cameraClass &camera) {
-	CanvasPoint v0 = projectVertexOntoCanvasPoint(camera, face.triangle.vertices[0]);
-	CanvasPoint v1 = projectVertexOntoCanvasPoint(camera, face.triangle.vertices[1]);
-	CanvasPoint v2 = projectVertexOntoCanvasPoint(camera, face.triangle.vertices[2]);
+	CanvasPoint v0 = camera.projectVertexOntoCanvasPoint(face.triangle.vertices[0]);
+	CanvasPoint v1 = camera.projectVertexOntoCanvasPoint(face.triangle.vertices[1]);
+	CanvasPoint v2 = camera.projectVertexOntoCanvasPoint(face.triangle.vertices[2]);
 	
 	glm::vec3 center = (face.triangle.vertices[0] + face.triangle.vertices[1] + face.triangle.vertices[2]) / 3.0f;
 	float epsilon = center.z * 0.00001f;

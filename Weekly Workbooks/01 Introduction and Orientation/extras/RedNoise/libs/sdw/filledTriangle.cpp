@@ -7,7 +7,6 @@
 #include "ModelTriangle.h"
 #include "Colour.h"
 #include "Utils.h"
-#include "cameraUtils.h"
 #include "camera.h"
 
 #include "filledTriangle.h"
@@ -78,9 +77,9 @@ void filledTriangle(DrawingWindow &window, float (&zbuf)[HEIGHT][WIDTH], CanvasT
 }
 
 void triangle3D(DrawingWindow &window, float (&zbuf)[HEIGHT][WIDTH], ModelTriangle triangle, cameraClass &camera) {
-	CanvasPoint v0 = projectVertexOntoCanvasPoint(camera, triangle.vertices[0]);
-	CanvasPoint v1 = projectVertexOntoCanvasPoint(camera, triangle.vertices[1]);
-	CanvasPoint v2 = projectVertexOntoCanvasPoint(camera, triangle.vertices[2]);
+	CanvasPoint v0 = camera.projectVertexOntoCanvasPoint(triangle.vertices[0]);
+	CanvasPoint v1 = camera.projectVertexOntoCanvasPoint(triangle.vertices[1]);
+	CanvasPoint v2 = camera.projectVertexOntoCanvasPoint(triangle.vertices[2]);
 	
 	glm::vec3 center = (triangle.vertices[0] + triangle.vertices[1] + triangle.vertices[2]) / 3.0f;
 	float epsilon = center.z * 0.00001f;

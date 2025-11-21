@@ -11,6 +11,7 @@ class Face {
         bool mirror = false;
         bool phong = false;
         float opacity;
+        float fuzziness;
         int specularExponent;
         glm::vec3 transmission;
         glm::vec3 diffuse;
