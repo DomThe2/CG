@@ -5,78 +5,77 @@
 DrawingWindow::DrawingWindow() {}
 
 DrawingWindow::DrawingWindow(int w, int h, bool fullscreen)
-    : width(w), height(h), pixelBuffer(w * h),
-      headless(false), window(nullptr), renderer(nullptr),
-      texture(nullptr), surface(nullptr)
+    : width(w), height(h), pixelBuffer(w * h)
 {
-    // Try to init video subsystem
+    // Try normal SDL video initialization
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
-        // If this fails (e.g., no X11/Wayland), go headless
-        fprintf(stderr, "SDL video init failed, switching to headless mode: %s\n",
-                SDL_GetError());
+        fprintf(stderr, "SDL video init failed, switching to headless: %s\n", SDL_GetError());
         headless = true;
     }
 
     if (!headless) {
-        // --- NORMAL MODE ---
         uint32_t flags = SDL_WINDOW_OPENGL;
         if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 
         window = SDL_CreateWindow("COMS30020",
                                   SDL_WINDOWPOS_UNDEFINED,
                                   SDL_WINDOWPOS_UNDEFINED,
-                                  width, height, flags);
+                                  width, height,
+                                  flags);
 
         if (!window) {
-            fprintf(stderr, "SDL window creation failed, switching to headless mode: %s\n",
-                    SDL_GetError());
+            fprintf(stderr, "SDL window failed, switching to headless: %s\n", SDL_GetError());
             headless = true;
         }
     }
 
     if (!headless) {
-        // Create renderer
-        uint32_t rflags = SDL_RENDERER_SOFTWARE;
-        renderer = SDL_CreateRenderer(window, -1, rflags);
+        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
         if (!renderer) {
-            fprintf(stderr, "SDL renderer failed, switching to headless mode: %s\n",
-                    SDL_GetError());
+            fprintf(stderr, "SDL renderer failed, switching to headless: %s\n", SDL_GetError());
             headless = true;
         }
     }
 
     if (!headless) {
-        SDL_RenderSetLogicalSize(renderer, width, height);
-
         texture = SDL_CreateTexture(renderer,
                                     SDL_PIXELFORMAT_ARGB8888,
                                     SDL_TEXTUREACCESS_STATIC,
                                     width, height);
         if (!texture) {
-            fprintf(stderr, "SDL texture failed, switching to headless mode: %s\n",
-                    SDL_GetError());
+            fprintf(stderr, "SDL texture failed, switching to headless: %s\n", SDL_GetError());
             headless = true;
         }
     }
 
-    // --- HEADLESS MODE SETUP ---
+    // HEADLESS fallback setup
     if (headless) {
         surface = SDL_CreateRGBSurfaceWithFormat(
             0, width, height, 32, SDL_PIXELFORMAT_ARGB8888
         );
         if (!surface) {
-            printMessageAndQuit("Headless mode failed: ", SDL_GetError());
+            printMessageAndQuit("Headless surface creation failed: ", SDL_GetError());
         }
     }
 }
 
 
-void DrawingWindow::renderFrame() {
-	SDL_UpdateTexture(texture, nullptr, pixelBuffer.data(), width * sizeof(uint32_t));
-	SDL_RenderClear(renderer);
-	SDL_RenderCopy(renderer, texture, nullptr, nullptr);
-	SDL_RenderPresent(renderer);
+
+void DrawingWindow::renderFrame()
+{
+    if (headless) {
+        memcpy(surface->pixels, pixelBuffer.data(),
+               width * height * sizeof(uint32_t));
+        return;
+    }
+
+    SDL_UpdateTexture(texture, nullptr, pixelBuffer.data(),
+                      width * sizeof(uint32_t));
+    SDL_RenderClear(renderer);
+    SDL_RenderCopy(renderer, texture, nullptr, nullptr);
+    SDL_RenderPresent(renderer);
 }
+
 
 void DrawingWindow::saveBMP(const std::string &filename) const {
 	auto surface = SDL_CreateRGBSurfaceFrom((void *) pixelBuffer.data(), width, height, 32,

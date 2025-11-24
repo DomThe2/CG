@@ -16,6 +16,7 @@ private:
 	SDL_Renderer *renderer;
 	SDL_Texture *texture;
 	std::vector<uint32_t> pixelBuffer;
+	bool headless;
 
 public:
 	DrawingWindow();
