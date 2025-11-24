@@ -8,6 +8,10 @@
 #include "CanvasPoint.h"
 #include "Utils.h"
 
+float getRand() {
+	return (float)rand()/(float)RAND_MAX;
+}
+
 glm::mat3 xMatrix(float angle, float direction) {
 	return glm::mat3(
     cos(angle), 0, direction*sin(angle),

@@ -61,26 +61,40 @@ std::map<std::string, material> loadPalette(std::string file) {
 	std::string name = "";
 	material mat;
 	std::map<std::string, material> palette;
+	bool safeMode = false;
 	while (getline(plt, line)) {
 		std::vector<std::string> splitLine = split(line, ' ');
 		if (splitLine.empty()) {
 			continue;
 		} else if (splitLine[0] == "newmtl") {
-			if (name != "") palette[name] = mat;
+			if (name != "") {
+				if (safeMode) {
+				mat.specular = mat.diffuse;
+				mat.ambient = mat.diffuse;
+				mat.transmission = mat.diffuse;
+				mat.specularExponent = 32;
+				}
+				palette[name] = mat;
+			} 
 			mat.textured = false;
 			name = splitLine[1];
 		} else if (splitLine[0] == "Kd") {
 			mat.diffuse = glm::vec3(std::stof(splitLine[1]), std::stof(splitLine[2]), std::stof(splitLine[3]));
 		} else if (splitLine[0] == "Ks") {
 			mat.specular = glm::vec3(std::stof(splitLine[1]), std::stof(splitLine[2]), std::stof(splitLine[3]));
+			safeMode = false;
 		} else if (splitLine[0] == "Ka") {
 			mat.ambient = glm::vec3(std::stof(splitLine[1]), std::stof(splitLine[2]), std::stof(splitLine[3]));
+			safeMode = false;
 		} else if (splitLine[0] == "Tf") {
 			mat.transmission = glm::vec3(std::stof(splitLine[1]), std::stof(splitLine[2]), std::stof(splitLine[3]));
+			safeMode = false;
 		} else if (splitLine[0] == "Ns") {
 			mat.specularExponent = std::stoi(splitLine[1]);
+			safeMode = false;
 		} else if (splitLine[0] == "d") {
 			mat.opacity = std::stof(splitLine[1]);
+			safeMode = false;
 		} else if (splitLine[0] == "map_Kd") {
 			mat.texture = TextureMap(splitLine[1]);
 			mat.textured = true;
@@ -147,10 +161,14 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 			mat = palette.at(splitLine[1]);
 			mirrored = true; // TEMP
 			fuzziness = 0.0f;
-		} else if (splitLine[0] == "usemtl" && (splitLine[1]=="Metal")) {
+		} else if (splitLine[0] == "usemtl" && (splitLine[1]=="Steel")) {
 			mat = palette.at(splitLine[1]);
 			mirrored = true; // TEMP
-			fuzziness = 0.4;
+			fuzziness = 0.08;
+		} else if (splitLine[0] == "usemtl" && (splitLine[1]=="Brass")) {
+			mat = palette.at(splitLine[1]);
+			mirrored = true; // TEMP
+			fuzziness = 0.05;
 		} else if (splitLine[0] == "usemtl") {
 			mat = palette.at(splitLine[1]);
 			mirrored = false;

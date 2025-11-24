@@ -4,7 +4,10 @@
 #include "ModelTriangle.h"
 #include "TextureMap.h"
 #include "Colour.h"
- 
+#include "RayTriangleIntersection.h"
+#include "face.h"
+#include "Utils.h"
+
 class Face {
 	public:
 		bool textured = false;
@@ -25,5 +28,24 @@ class Face {
 
     Colour getColour() {
         return Colour(diffuse[0]*255.0f, diffuse[1]*255.0f, diffuse[2]*255.0f);
+    }
+
+    glm::vec3 getBarycentricOfIntersection(RayTriangleIntersection intersection) {
+        return convertToBarycentricCoordinates(intersection.intersectedTriangle.vertices[0], intersection.intersectedTriangle.vertices[1], 
+                                          intersection.intersectedTriangle.vertices[2], intersection.intersectionPoint);
+    }
+    
+
+    glm::vec3 getphongNormal(RayTriangleIntersection intersection, std::vector<Face>& model) {
+        glm::vec3 barycentric = model[intersection.triangleIndex].getBarycentricOfIntersection(intersection);
+        glm::vec3 normal = barycentric.z * model[intersection.triangleIndex].v0Normal 
+            + barycentric.x * model[intersection.triangleIndex].v1Normal 
+            + barycentric.y * model[intersection.triangleIndex].v2Normal;
+        return glm::normalize(normal);
+    }
+
+    glm::vec3 getNormal(RayTriangleIntersection intersection, std::vector<Face>& model) {
+        if (model[intersection.triangleIndex].phong) return getphongNormal(intersection, model);
+        else return intersection.intersectedTriangle.normal;
     }
 }; 

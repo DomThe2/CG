@@ -16,8 +16,11 @@ class cameraClass {
 		float focalLength;
 		float focalDistance;
 		float lensRadius;
+		int dofSamples;
 		float viewportHeight; 
 		float viewportWidth;
+		float exposure;
+		int shadowSamples;
 		bool orbit;
 		TextureMap environment;
 
