@@ -4,28 +4,72 @@
 
 DrawingWindow::DrawingWindow() {}
 
-DrawingWindow::DrawingWindow(int w, int h, bool fullscreen) : width(w), height(h), pixelBuffer(w * h) {
-	SDL_SetHint("SDL_HINT_VIDEODRIVER", "dummy"); // TEMP
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) printMessageAndQuit("Could not initialise SDL: ", SDL_GetError());
-	//uint32_t flags = SDL_WINDOW_OPENGL;
-	uint32_t flags = SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL; // TEMP
-	if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
-	int ANYWHERE = SDL_WINDOWPOS_UNDEFINED;
-	//window = SDL_CreateWindow("COMS30020", ANYWHERE, ANYWHERE, width, height, flags);
-	window = SDL_CreateWindow("COMS30020", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, flags);  // TEMP
-	if (!window) printMessageAndQuit("Could not set video mode: ", SDL_GetError());
-	// Set rendering to software (hardware acceleration doesn't work on all platforms)
-	flags = SDL_RENDERER_SOFTWARE;
-	// You could try hardware acceleration if you like - by uncommenting the below line
-	// flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC;
-	renderer = SDL_CreateRenderer(window, -1, flags);
-	if (!renderer) printMessageAndQuit("Could not create renderer: ", SDL_GetError());
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-	SDL_RenderSetLogicalSize(renderer, width, height);
-	int PIXELFORMAT = SDL_PIXELFORMAT_ARGB8888;
-	texture = SDL_CreateTexture(renderer, PIXELFORMAT, SDL_TEXTUREACCESS_STATIC, width, height);
-	if (!texture) printMessageAndQuit("Could not allocate texture: ", SDL_GetError());
+DrawingWindow::DrawingWindow(int w, int h, bool fullscreen)
+    : width(w), height(h), pixelBuffer(w * h),
+      headless(false), window(nullptr), renderer(nullptr),
+      texture(nullptr), surface(nullptr)
+{
+    // Try to init video subsystem
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+        // If this fails (e.g., no X11/Wayland), go headless
+        fprintf(stderr, "SDL video init failed, switching to headless mode: %s\n",
+                SDL_GetError());
+        headless = true;
+    }
+
+    if (!headless) {
+        // --- NORMAL MODE ---
+        uint32_t flags = SDL_WINDOW_OPENGL;
+        if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+
+        window = SDL_CreateWindow("COMS30020",
+                                  SDL_WINDOWPOS_UNDEFINED,
+                                  SDL_WINDOWPOS_UNDEFINED,
+                                  width, height, flags);
+
+        if (!window) {
+            fprintf(stderr, "SDL window creation failed, switching to headless mode: %s\n",
+                    SDL_GetError());
+            headless = true;
+        }
+    }
+
+    if (!headless) {
+        // Create renderer
+        uint32_t rflags = SDL_RENDERER_SOFTWARE;
+        renderer = SDL_CreateRenderer(window, -1, rflags);
+        if (!renderer) {
+            fprintf(stderr, "SDL renderer failed, switching to headless mode: %s\n",
+                    SDL_GetError());
+            headless = true;
+        }
+    }
+
+    if (!headless) {
+        SDL_RenderSetLogicalSize(renderer, width, height);
+
+        texture = SDL_CreateTexture(renderer,
+                                    SDL_PIXELFORMAT_ARGB8888,
+                                    SDL_TEXTUREACCESS_STATIC,
+                                    width, height);
+        if (!texture) {
+            fprintf(stderr, "SDL texture failed, switching to headless mode: %s\n",
+                    SDL_GetError());
+            headless = true;
+        }
+    }
+
+    // --- HEADLESS MODE SETUP ---
+    if (headless) {
+        surface = SDL_CreateRGBSurfaceWithFormat(
+            0, width, height, 32, SDL_PIXELFORMAT_ARGB8888
+        );
+        if (!surface) {
+            printMessageAndQuit("Headless mode failed: ", SDL_GetError());
+        }
+    }
 }
+
 
 void DrawingWindow::renderFrame() {
 	SDL_UpdateTexture(texture, nullptr, pixelBuffer.data(), width * sizeof(uint32_t));
