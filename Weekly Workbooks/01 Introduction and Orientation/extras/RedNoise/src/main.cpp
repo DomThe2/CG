@@ -188,7 +188,10 @@ int main(int argc, char *argv[]) {
 			//camera.focalDistance = 8.5 * 0.35;
 		}
 		focusCamera(model, camera);
-		if (frame <= 375) window.saveBMP("output/output" + std::to_string(frame) + ".bmp");
+		if (frame >= 31 && frame <= 375) {
+			camera.mode = "raytraced";
+			window.saveBMP("output/output" + std::to_string(frame) + ".bmp");
+		}
 		frame++;
 		
 	}
