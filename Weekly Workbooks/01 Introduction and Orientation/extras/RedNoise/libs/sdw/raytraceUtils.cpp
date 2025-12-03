@@ -11,10 +11,12 @@
 
 #include "raytraceUtils.h"
 
+// getClosestIntersection, used by both photon map and raytracer
 RayTriangleIntersection getClosestIntersection(std::vector<Face>& model, glm::vec3 cameraPosition, glm::vec3 rayDirection, int ignoreIndex) {
 	RayTriangleIntersection intersection;
 	intersection.distanceFromCamera = std::numeric_limits<float>::infinity();
 	intersection.triangleIndex = -1;
+	// iterate through all triangles in model, find closest that intersects
 	for (int i=0; i<model.size(); i++) {
 		glm::vec3 e0 = model[i].triangle.vertices[1] - model[i].triangle.vertices[0];
 		glm::vec3 e1 = model[i].triangle.vertices[2] - model[i].triangle.vertices[0];
@@ -33,3 +35,5 @@ RayTriangleIntersection getClosestIntersection(std::vector<Face>& model, glm::ve
 	}
 	return intersection;
 }
+
+// could be changed for a much more efficient kd-tree implementation given time. 

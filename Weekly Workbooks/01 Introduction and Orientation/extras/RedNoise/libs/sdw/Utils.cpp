@@ -8,16 +8,19 @@
 #include "CanvasPoint.h"
 #include "Utils.h"
 
+// get random number in [0..1]
 float getRand() {
 	return (float)rand()/(float)RAND_MAX;
 }
 
+// x rotation matrix 
 glm::mat3 xMatrix(float angle, float direction) {
 	return glm::mat3(
     cos(angle), 0, direction*sin(angle),
 	0, 1, 0,
     -direction*sin(angle), 0, cos(angle));
 }
+// y rotation matrix
 glm::mat3 yMatrix(float angle, float direction) {
 	return glm::mat3(
 	1, 0, 0,
@@ -26,6 +29,7 @@ glm::mat3 yMatrix(float angle, float direction) {
 
 }
 
+// standard interpolation
 std::vector<float> interpolateSingleFloats(float from, float to, float numberOfValues) {
 	std::vector<float> output;
 	if (numberOfValues <= 1) {
@@ -38,6 +42,7 @@ std::vector<float> interpolateSingleFloats(float from, float to, float numberOfV
 	return output;
 }
 
+// provided split function
 std::vector<std::string> split(const std::string &line, char delimiter) {
 	auto haystack = line;
 	std::vector<std::string> tokens;
@@ -51,7 +56,7 @@ std::vector<std::string> split(const std::string &line, char delimiter) {
 	return tokens;
 }
 
-// Uses Cramer’s rule to convert from 2D coordinates to Barycentric proportional proximities
+// provided barycentric function
 glm::vec3 convertToBarycentricCoordinates(glm::vec2 v0, glm::vec2 v1, glm::vec2 v2, glm::vec2 r)
 {
     glm::vec2 e0 = v1 - v0;
@@ -69,6 +74,8 @@ glm::vec3 convertToBarycentricCoordinates(glm::vec2 v0, glm::vec2 v1, glm::vec2 
     return glm::vec3(u,v,w);
 }
 
+// provided barycentric function, but overloaded with 3d vectors instead of 2d. 
+// identical operation
 glm::vec3 convertToBarycentricCoordinates(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, glm::vec3 r)
 {
     glm::vec3 e0 = v1 - v0;

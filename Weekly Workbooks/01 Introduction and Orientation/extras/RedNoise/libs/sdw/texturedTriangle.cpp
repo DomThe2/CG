@@ -15,6 +15,8 @@
 
 void drawHorizontalTexturedLine(DrawingWindow &window, float (&zbuf)[HEIGHT][WIDTH], TextureMap texture, CanvasPoint from, CanvasPoint to) {
 	float number = abs(to.x - from.x) + 1;
+	// interpolate accross x d and texture x,y 
+	// only need to be able to draw horizontal lines
 	std::vector<float> x = interpolateSingleFloats(from.x, to.x, number);
 	std::vector<float> u = interpolateSingleFloats(from.texturePoint.x, to.texturePoint.x, number);
 	std::vector<float> v = interpolateSingleFloats(from.texturePoint.y, to.texturePoint.y, number);
@@ -35,6 +37,7 @@ void drawFlatBottomTexturedTriangle(DrawingWindow &window, float (&zbuf)[HEIGHT]
 	float height = v0.y - v1.y;
 	float width = fmax(std::fabs(v0.x-v1.x), std::fabs(v1.x-v2.x));
 	int numSteps = (int)std::round(fmax(std::fabs(height), width)) + 1;
+	// interpolate accross both canvas triangle sides AND textured triangle sides
 	std::vector<float> leftX = interpolateSingleFloats(v0.x, v1.x, numSteps);
 	std::vector<float> leftD = interpolateSingleFloats(v0.depth, v1.depth, numSteps);
 	std::vector<float> rightX = interpolateSingleFloats(v0.x, v2.x, numSteps);
@@ -44,6 +47,7 @@ void drawFlatBottomTexturedTriangle(DrawingWindow &window, float (&zbuf)[HEIGHT]
 	std::vector<float> rightU = interpolateSingleFloats(v0.texturePoint.x, v2.texturePoint.x, numSteps);
 	std::vector<float> rightV = interpolateSingleFloats(v0.texturePoint.y, v2.texturePoint.y, numSteps);
 	std::vector<float> Y = interpolateSingleFloats(v0.y, v1.y, numSteps);
+	// draw lines from one canvas triangle side to the other 
 	for (int i = 0; i<numSteps; i++) {
 		CanvasPoint from = CanvasPoint(leftX[i], Y[i], leftD[i]);
 		CanvasPoint to = CanvasPoint(rightX[i], Y[i], rightD[i]);
@@ -66,13 +70,7 @@ void texturedTriangle(DrawingWindow &window, float (&zbuf)[HEIGHT][WIDTH], Canva
 	if (v1.y > v2.y) std::swap(v1, v2);
 	if (v0.y > v1.y) std::swap(v0, v1);
 
-	/*
-	if (v0.y == v2.y) {
-		//drawLine(window, v0, v2, Colour(255,255,255));
-		return;
-	}
-	*/
-
+	// find split point for both canvas triangle AND texture triangle 
 	float x = (v0.x + ((v1.y - v0.y) / (v2.y - v0.y)) * (v2.x - v0.x));
 	float u = (v0.texturePoint.x + ((v1.y - v0.y) / (v2.y - v0.y)) * (v2.texturePoint.x - v0.texturePoint.x));
 	float v = (v0.texturePoint.y + ((v1.y - v0.y) / (v2.y - v0.y)) * (v2.texturePoint.y - v0.texturePoint.y));
@@ -83,11 +81,13 @@ void texturedTriangle(DrawingWindow &window, float (&zbuf)[HEIGHT][WIDTH], Canva
 	drawFlatBottomTexturedTriangle(window, zbuf, v2, v1, midpoint, texture);
 }
 
+// similar to filled triangle, but for textured surfaces
 void triangleTextured3D(DrawingWindow &window, float (&zbuf)[HEIGHT][WIDTH], Face face, cameraClass &camera) {
 	CanvasPoint v0 = camera.projectVertexOntoCanvasPoint(face.triangle.vertices[0]);
 	CanvasPoint v1 = camera.projectVertexOntoCanvasPoint(face.triangle.vertices[1]);
 	CanvasPoint v2 = camera.projectVertexOntoCanvasPoint(face.triangle.vertices[2]);
 	
+	// prevent z fighting 
 	glm::vec3 center = (face.triangle.vertices[0] + face.triangle.vertices[1] + face.triangle.vertices[2]) / 3.0f;
 	float epsilon = center.z * 0.00001f;
 	v0.depth += epsilon;

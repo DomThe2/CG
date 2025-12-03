@@ -14,6 +14,7 @@
 #include "CanvasPoint.h"
 #include "parser.h"
 
+// temporary struct to store material information
 struct material {
 	bool textured = false;
 	float opacity;
@@ -25,8 +26,10 @@ struct material {
 	TextureMap texture;
 };
 
+// store a photon map 
 void storePhotonMap(std::vector<photon> lightMap, std::string filename) {
 	std::ofstream file(filename);
+	// includes: location, angle of incidence to surface, power of photon 
 	for (int i=0; i<lightMap.size(); i++) {
 		file << lightMap[i].location[0] << " " << lightMap[i].location[1] << " " << lightMap[i].location[2] 
 		<< " " << lightMap[i].incidence[0] << " " << lightMap[i].incidence[1] << " " << lightMap[i].incidence[2] 
@@ -35,6 +38,7 @@ void storePhotonMap(std::vector<photon> lightMap, std::string filename) {
 	file.close();
 }
 
+// load a photon map 
 std::vector<photon> getPhotonMap(std::string filename) {
 	std::fstream file(filename);
 	std::string line;
@@ -55,6 +59,7 @@ std::vector<photon> getPhotonMap(std::string filename) {
 	return photonMap;
 }
 
+// load an mtl 
 std::map<std::string, material> loadPalette(std::string file) {
 	std::fstream plt(file);
 	std::string line;
@@ -67,8 +72,8 @@ std::map<std::string, material> loadPalette(std::string file) {
 		if (splitLine.empty()) {
 			continue;
 		} else if (splitLine[0] == "newmtl") {
-			if (name != "") {
-				if (safeMode) {
+			if (name != "") { // store previous material in palette 
+				if (safeMode) { // if mtl file does not include fancy colour values, just use the diffuse value for everything 
 				mat.specular = mat.diffuse;
 				mat.ambient = mat.diffuse;
 				mat.transmission = mat.diffuse;
@@ -78,6 +83,7 @@ std::map<std::string, material> loadPalette(std::string file) {
 			} 
 			mat.textured = false;
 			name = splitLine[1];
+	    // collect various colour values 
 		} else if (splitLine[0] == "Kd") {
 			mat.diffuse = glm::vec3(std::stof(splitLine[1]), std::stof(splitLine[2]), std::stof(splitLine[3]));
 		} else if (splitLine[0] == "Ks") {
@@ -95,6 +101,7 @@ std::map<std::string, material> loadPalette(std::string file) {
 		} else if (splitLine[0] == "d") {
 			mat.opacity = std::stof(splitLine[1]);
 			safeMode = false;
+		// collect texture 
 		} else if (splitLine[0] == "map_Kd") {
 			mat.texture = TextureMap(splitLine[1]);
 			mat.textured = true;
@@ -105,6 +112,7 @@ std::map<std::string, material> loadPalette(std::string file) {
 	return palette;
 }
 
+// load obj file 
 std::vector<Face> loadTriangle(std::string file, float scale) {
 	std::fstream obj(file);
 	std::vector<Face> faces;
@@ -122,18 +130,23 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 		if (splitLine.empty()) {
 			continue;
 		} else if (splitLine[0] == "mtllib") {
+			// load mtl file 
 			palette = loadPalette(splitLine[1]);
 		} else if (splitLine[0] == "v") {
+			// vertex 
 			vertices.push_back(glm::vec3(std::stof(splitLine[1])*scale, std::stof(splitLine[2])*scale, std::stof(splitLine[3])*scale));
 		} else if (splitLine[0] == "vt") {
+			// texture vertex 
 			texturevertices.push_back(glm::vec2(std::stof(splitLine[1]), std::stof(splitLine[2])));
 		} else if (splitLine[0] == "f") {
+			// store verticies
 			std::vector<std::string> vertex1 = split(splitLine[1], '/');
 			std::vector<std::string> vertex2 = split(splitLine[2], '/');
 			std::vector<std::string> vertex3 = split(splitLine[3], '/');
 			Colour colour = Colour(mat.diffuse[0]*255.0f, mat.diffuse[1]*255.0f, mat.diffuse[2]*255.0f);
 			ModelTriangle triangle = ModelTriangle(vertices[std::stoi(vertex1[0])-1], vertices[std::stoi(vertex2[0])-1], vertices[std::stoi(vertex3[0])-1], colour);
 			Face face;
+			// store corresponding texture verticies 
 			if (mat.textured) {
 				triangle.texturePoints[0] = TexturePoint(texturevertices[std::stoi(vertex1[1])-1][0] * mat.texture.width, texturevertices[std::stoi(vertex1[1])-1][1] * mat.texture.height); 
 				triangle.texturePoints[1] = TexturePoint(texturevertices[std::stoi(vertex2[1])-1][0] * mat.texture.width, texturevertices[std::stoi(vertex2[1])-1][1] * mat.texture.height);
@@ -142,6 +155,7 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 				face.textured = true; 
 			}
 			
+			// initialise face obejct with all face information
 			triangle.normal = glm::normalize(glm::cross((triangle.vertices[0] - triangle.vertices[1]), (triangle.vertices[0] - triangle.vertices[2])));
 			face.mirror = mirrored;
 			face.fuzziness = fuzziness;
@@ -155,19 +169,23 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 			face.phong = phong;
 			faces.push_back(face);
 		} else if (splitLine[0] == "s") {
+			// enable/disable phong shading for current face 
 			if (splitLine[1] == "1") phong = true;
 			else phong = false;
 		} else if (splitLine[0] == "usemtl" && (splitLine[1]=="Mirror")) {
+			// face is a mirror 
 			mat = palette.at(splitLine[1]);
-			mirrored = true; // TEMP
+			mirrored = true;
 			fuzziness = 0.0f;
 		} else if (splitLine[0] == "usemtl" && (splitLine[1]=="Steel")) {
+			// face is steel metal (bit hacky but it works)
 			mat = palette.at(splitLine[1]);
-			mirrored = true; // TEMP
+			mirrored = true; 
 			fuzziness = 0.08;
 		} else if (splitLine[0] == "usemtl" && (splitLine[1]=="Brass")) {
+			// face is brass metal 
 			mat = palette.at(splitLine[1]);
-			mirrored = true; // TEMP
+			mirrored = true; 
 			fuzziness = 0.05;
 		} else if (splitLine[0] == "usemtl") {
 			mat = palette.at(splitLine[1]);
@@ -176,6 +194,7 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 	}
 	obj.close();
 
+	// calculate vertex normals of all verticies
 	std::vector<glm::vec3> vertexNormals;
 	for (int i=0; i<vertices.size(); i++) {
 		glm::vec3 total = glm::vec3(0,0,0);
@@ -188,6 +207,7 @@ std::vector<Face> loadTriangle(std::string file, float scale) {
 		}
 		vertexNormals.push_back(glm::normalize(total / number));
 	}
+	// assign face with it's corresponding vertex nornmals
 	for (int j=0; j<faces.size(); j++) {
 		if (faces[j].phong) {
 			for (int i=0; i<vertices.size(); i++) {
