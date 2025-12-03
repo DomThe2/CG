@@ -24,8 +24,8 @@ float inShadow(std::vector<Face> &model, RayTriangleIntersection ray, glm::vec3 
 	float radius = 0.05f/shellNumber;
 	float w = 0;
 	float n = 0;
-	// increment ray origin in disk around vector pointing from light to point 
-	// produces soft shadows 
+	// produce disk of points around light source
+	// increment ray origin in disk around vector pointing from light to point - soft shadows
 	glm::vec3 direction = glm::normalize(light - ray.intersectionPoint);
 	glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0,1,0), direction));
 	glm::vec3 up = glm::cross(direction, right);

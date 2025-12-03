@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
 		if (camera.mode == "raytraced") {
 			// delagate to raytraced drawer
 			// adjust thread number to cpu thread count 
-			int threadNumber = 4;
+			int threadNumber = 1;
 			drawRaytraced(window, model, kdTree, camera, threadNumber);
 		} else if (camera.mode == "rasterised") {
 			// delagate to rasterised drawer
