@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
 	camera.orbit = false;
 	camera.focalLength = 2.0;
 	camera.focalDistance = 4.0;
-	camera.mode = "wireframe";
+	camera.mode = "rasterised";
 	camera.lensRadius = 0.01f; 
 	camera.dofSamples = 1;
 	camera.viewportHeight = 1.5;
