@@ -22,8 +22,11 @@
 #include <parser.h>
 #include <kdTree.h>
 
-// cd '01 Introduction and Orientation'/extras/RedNoise
 // make 
+
+// PLEASE NOTE:
+//- gouraud shading is implemented but not enabled, nor is it used in the ident, it has been fully replaced by phong shading 
+//- the ident only includes DOF for the first second. This is due to the immense increase in render time it produces
 
 // wireframe 
 void drawWireFrame(DrawingWindow &window, std::vector<Face>& model, float (&zbuf)[HEIGHT][WIDTH], cameraClass &camera) {
@@ -124,9 +127,9 @@ int main(int argc, char *argv[]) {
 	// load scene
 	std::vector<Face> model = loadTriangle("textured-cornell-box.obj", 0.35);
     
-	// initialise camera class
+	// initialise camera class settings
 	cameraClass camera;
-	camera.light = glm::vec3(0, 1*0.35, 0);
+	camera.light = glm::vec3(0, 1*0.35, 0); // light location
 	camera.environment = TextureMap("skybox.ppm");
 	camera.cameraPos = glm::vec3(0.0, 0.0, 4.0);
 	camera.cameraOri = glm::mat3(1.0f);
@@ -134,12 +137,12 @@ int main(int argc, char *argv[]) {
 	camera.focalLength = 2.0;
 	camera.focalDistance = 4.0;
 	camera.mode = "rasterised";
-	camera.lensRadius = 0.01f; 
-	camera.dofSamples = 1;
+	camera.lensRadius = 0.01f; // increases DOF
+	camera.dofSamples = 1; // increases quality of DOF
 	camera.viewportHeight = 1.5;
 	camera.viewportWidth = camera.viewportHeight * ((float)WIDTH/(float)HEIGHT);
-	camera.exposure = 1.0f;
-	camera.shadowSamples = 1;
+	camera.exposure = 1.0f; // increases brightness
+	camera.shadowSamples = 1; // increases shadow quality 
 
 	std::vector<photon> lightMap;
 	std::ifstream f("photonMap.txt");
@@ -150,11 +153,14 @@ int main(int argc, char *argv[]) {
 	} else {
 		// if there is no existing photon map, make one 
 		std::cout<<"Building photon map"<<std::endl;
-		lightMap = photonMap(model, 10000, camera); // adjust photon number here (at least 1 million for good results, but expensive)
+		lightMap = photonMap(model, 100000, camera); // adjust photon number here (at least 1 million for good results, but expensive)
 		storePhotonMap(lightMap, "photonMap.txt");
 	}
 	// with the photon map as a vector, build a kd tree
 	node* kdTree = buildkdTree(lightMap, 0, lightMap.size()-1, 0);
+
+	// produce vertex brightnesses for gouraud shading
+    getVertexColours(model, kdTree, camera);
 
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
@@ -163,9 +169,11 @@ int main(int argc, char *argv[]) {
 		float start_time = SDL_GetTicks();
 		// poll for events
 		if (window.pollForInputEvents(event)) camera.handleEvent(event, window);
+		// focus camera to change focal distance to distance of object currently looking at 
+		focusCamera(model, camera);
 		if (camera.mode == "raytraced") {
 			// delagate to raytraced drawer
-			// adjust thread number to cpu thread count 
+			// adjust thread number to cpu thread count, leave at one for no concurrency
 			int threadNumber = 1;
 			drawRaytraced(window, model, kdTree, camera, threadNumber);
 		} else if (camera.mode == "rasterised") {
@@ -184,6 +192,7 @@ int main(int argc, char *argv[]) {
 		// only works for demo scene used in 15 second render. Disabled for cornell box. 
 		/* 
 		if (frame < 25) {
+		    camera.exposure = 20.0f;
 			camera.cameraOri = yMatrix(0.01, 1) * camera.cameraOri;
 		} else if (frame < 75) {
 			camera.cameraPos.x -= 0.04f;
@@ -206,13 +215,8 @@ int main(int argc, char *argv[]) {
 			camera.cameraOri = xMatrix(0.0314, -1) * camera.cameraOri;
 			camera.cameraPos.z -= 0.01f;
 		}
-		// focus camera to change focal distance to distance of object currently looking at 
-		focusCamera(model, camera);
-		if (frame >= 31 && frame <= 375) {
-			camera.mode = "raytraced";
-			window.saveBMP("output/output" + std::to_string(frame) + ".bmp");
-		}
 		*/
+		window.saveBMP("output/output" + std::to_string(frame) + ".bmp");
 		frame++;
 		
 	}

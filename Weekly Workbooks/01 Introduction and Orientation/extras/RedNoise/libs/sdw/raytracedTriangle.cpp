@@ -102,6 +102,7 @@ float specularValue(RayTriangleIntersection intersection, glm::vec3 normal, floa
 
 // get lighting of point using all lighting techniques
 glm::vec3 getLighting(std::vector<Face> &model, node* kdTree, glm::vec3 colour, glm::vec3 normal, RayTriangleIntersection intersection, cameraClass &camera) {
+	if (intersection.triangleIndex == -1) return glm::vec3(0.0f);
 	Face face = model[intersection.triangleIndex];
 	// gather various light values 
 	float ambient = 0.0f; 
@@ -116,6 +117,23 @@ glm::vec3 getLighting(std::vector<Face> &model, node* kdTree, glm::vec3 colour, 
 	glm::vec3 specularTerm = face.specular * specular * shadow;
 	// return sum weighted by camera "exposure", simulating camera sensor sensitivity 
 	return glm::min((ambientTerm + diffuseTerm + specularTerm + photonTerm) * camera.exposure, glm::vec3(1.0f));
+}
+
+// produce vertex colours of all verticies for use in gouraud shading
+void getVertexColours(std::vector<Face> &model, node* kdTree, cameraClass &camera) {
+	for (int i=0; i<model.size(); i++) {
+		glm::vec3 ray1 = (model[i].triangle.vertices[0] - camera.cameraPos);
+		glm::vec3 ray2 = (model[i].triangle.vertices[1] - camera.cameraPos);
+		glm::vec3 ray3 = (model[i].triangle.vertices[2] - camera.cameraPos);
+		// artifical intersections to use pre-existing lighting calculation
+		RayTriangleIntersection ray1Intersection = RayTriangleIntersection(model[i].triangle.vertices[0],  glm::length(ray1), model[i].triangle, i);
+		RayTriangleIntersection ray2Intersection = RayTriangleIntersection(model[i].triangle.vertices[1],  glm::length(ray2), model[i].triangle, i);
+		RayTriangleIntersection ray3Intersection = RayTriangleIntersection(model[i].triangle.vertices[2],  glm::length(ray3), model[i].triangle, i);
+		// pre-compute lighting of vertex
+		model[i].v0Brightness = getLighting(model, kdTree, model[i].diffuse, model[i].triangle.normal, ray1Intersection, camera);
+		model[i].v1Brightness = getLighting(model, kdTree, model[i].diffuse, model[i].triangle.normal, ray2Intersection, camera);
+		model[i].v2Brightness = getLighting(model, kdTree, model[i].diffuse, model[i].triangle.normal, ray3Intersection, camera);
+	}
 }
 
 //Forward declaration to allow mutual recursion
@@ -214,7 +232,13 @@ Colour getColour(std::vector<Face> &model, node* kdTree, RayTriangleIntersection
 			colour = face.diffuse;
 		}
 		// get lighting of point
-		glm::vec3 total = getLighting(model, kdTree, colour, normal, intersection, camera);
+		glm::vec3 total;
+		if (face.gouraud) {
+			total = face.getGouraudColour(intersection, model);
+		} else {
+			total = getLighting(model, kdTree, colour, normal, intersection, camera);
+		}
+		
 		Colour output = Colour(total[0]*255.0f, total[1]*255.0f, total[2]*255.0f);
 		return (output);
 	}
